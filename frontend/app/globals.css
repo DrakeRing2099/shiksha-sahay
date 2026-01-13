@@ -1,41 +1,255 @@
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 /* Full height for chat layout */
+/* html,
+body {
+  height: 100%;
+  margin: 0;
+} */
+
+/* @tailwind base;
+@tailwind components;
+@tailwind utilities; */
+
+/* =========================
+   Google Fonts (Devanagari)
+========================= */
+
+/* =========================
+   Root + Theme Variables
+========================= */
+:root {
+  --font-size: 16px;
+
+  /* Primary */
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-light: #dbeafe;
+
+  /* Secondary */
+  --secondary: #10b981;
+  --secondary-hover: #059669;
+  --secondary-light: #d1fae5;
+
+  /* Accent */
+  --accent: #f59e0b;
+  --accent-light: #fef3c7;
+
+  /* Text */
+  --foreground: #0f172a;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --text-disabled: #9ca3af;
+
+  /* Background */
+  --background: #ffffff;
+  --surface: #f9fafb;
+  --border: #e5e7eb;
+  --divider: #d1d5db;
+
+  /* Chat */
+  --assistant-bg: #f7f7f8;
+  --user-bg: #2563eb;
+
+  /* Semantic */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --info: #3b82f6;
+
+  --radius: 0.625rem;
+}
+
+/* =========================
+   Dark Mode
+========================= */
+.dark {
+  --background: #020617;
+  --foreground: #f8fafc;
+  --surface: #020617;
+  --border: #334155;
+}
+
+/* =========================
+   Base Layout
+========================= */
 html,
 body {
   height: 100%;
   margin: 0;
+  font-size: var(--font-size);
 }
 
-/* Light theme colors (ChatGPT-like) */
-:root {
-  --background: #ffffff;
-  --foreground: #0f172a;
-  --border: #e5e7eb;
-  --assistant-bg: #f7f7f8;
-  --user-bg: #2563eb;
-}
-
-/* Base body styles */
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji",
-    "Segoe UI Emoji";
+  font-family: "Noto Sans Devanagari", ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, "Apple Color Emoji", "Segoe UI Emoji";
   overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar (clean & subtle) */
+/* =========================
+   Typography Defaults
+========================= */
+h1,
+h2,
+h3,
+h4,
+label,
+button,
+input {
+  line-height: 1.5;
+}
+
+h1 { font-weight: 600; }
+h2 { font-weight: 600; }
+h3 { font-weight: 500; }
+h4 { font-weight: 500; }
+
+input {
+  font-weight: 400;
+}
+
+/* =========================
+   Animations
+========================= */
+@keyframes slideInFromLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.animate-slide-in {
+  animation: slideInFromLeft 250ms ease-out;
+}
+
+@keyframes recordPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.animate-record-pulse {
+  animation: recordPulse 1s ease-in-out infinite;
+}
+
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+.animate-waveform {
+  animation: waveform 0.5s ease-in-out infinite;
+}
+
+@keyframes thinkingDots {
+  0%, 20% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes messageSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.message-enter {
+  animation: messageSlideIn 300ms ease-out;
+}
+
+/* =========================
+   Effects & Utilities
+========================= */
+.chat-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tap-feedback:active {
+  transform: scale(0.95);
+  transition: transform 100ms ease-in-out;
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    #f9fafb 0%,
+    #e5e7eb 50%,
+    #f9fafb 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* =========================
+   Accessibility
+========================= */
+*:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@media (prefers-contrast: high) {
+  :root {
+    --border: #000;
+    --text-secondary: #000;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  button,
+  a,
+  input,
+  select {
+    min-height: 48px;
+    min-width: 48px;
+  }
+}
+
+/* Devanagari text optimization */
+[lang="hi"],
+.devanagari {
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+/* =========================
+   Scrollbars
+========================= */
 * {
   scrollbar-width: thin;
   scrollbar-color: #cbd5f5 transparent;
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
+
+::-webkit-scrollbar-track {
+  background: #f9fafb;
+}
+
 ::-webkit-scrollbar-thumb {
-  background-color: #cbd5f5;
-  border-radius: 6px;
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
