@@ -1,3 +1,4 @@
+"use client";
 import { useEffect, useRef } from 'react';
 import { Header } from '@/app/components/Header';
 import { ChatProvider, useChat } from '@/app/context/ChatContext';

@@ -1,3 +1,4 @@
+"use client";
 import { useApp } from '@/app/context/AppContext';
 
 export const ThinkingIndicator = () => {

@@ -1,3 +1,4 @@
+"use client";
 import { useApp } from '@/app/context/AppContext';
 import { BarChart3, BookOpen, HelpCircle, Target } from 'lucide-react';
 

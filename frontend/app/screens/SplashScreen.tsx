@@ -1,22 +1,6 @@
 "use client";
-import { useEffect } from 'react';
-import { useApp } from '@/app/context/AppContext';
 
 export const SplashScreen = () => {
-  const { setCurrentScreen, hasCompletedOnboarding } = useApp();
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (hasCompletedOnboarding) {
-        setCurrentScreen('home');
-      } else {
-        setCurrentScreen('onboarding');
-      }
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [setCurrentScreen, hasCompletedOnboarding]);
-
   return (
     <div className="flex flex-col items-center justify-center h-full bg-gradient-to-b from-[#F9FAFB] to-white">
       <div className="w-24 h-24 rounded-full bg-[#2563EB] flex items-center justify-center mb-6 shadow-lg">

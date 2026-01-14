@@ -1,3 +1,4 @@
+"use client";
 import { useApp } from "@/app/context/AppContext";
 import { useChat } from "@/app/context/ChatContext";
 import { Info, X } from "lucide-react";

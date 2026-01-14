@@ -1,3 +1,4 @@
+"use client";
 import { Message } from '@/app/context/ChatContext';
 import { Mic, ThumbsUp, ThumbsDown, Bookmark } from 'lucide-react';
 import { useState } from 'react';

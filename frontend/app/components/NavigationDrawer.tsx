@@ -1,66 +1,94 @@
-import { Home, Clock, Bookmark, BookOpen, BarChart, Settings, HelpCircle, LogOut, X } from 'lucide-react';
-import { useApp } from '@/app/context/AppContext';
-import type { Screen } from '@/app/context/AppContext';
+"use client";
+
+import {
+  Home,
+  Clock,
+  Bookmark,
+  BookOpen,
+  BarChart,
+  Settings,
+  HelpCircle,
+  LogOut,
+  X,
+} from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
+import { useApp } from "@/app/context/AppContext";
 
 export const NavigationDrawer = () => {
-  const { isDrawerOpen, setIsDrawerOpen, currentScreen, setCurrentScreen, userProfile, language } = useApp();
+  const router = useRouter();
+  const pathname = usePathname();
 
-  const navigate = (screen: Screen) => {
-    setCurrentScreen(screen);
+  const {
+    isDrawerOpen,
+    setIsDrawerOpen,
+    userProfile,
+    language,
+  } = useApp();
+
+  const navigate = (href: string) => {
+    router.push(href);
     setIsDrawerOpen(false);
   };
 
   const menuItems = [
     {
+      id: "home",
       icon: Home,
-      labelHi: 'होम',
-      labelEn: 'Home',
-      screen: 'home' as Screen,
+      labelHi: "होम",
+      labelEn: "Home",
+      href: "/home",
     },
     {
+      id: "history",
       icon: Clock,
-      labelHi: 'मेरी बातचीत',
-      labelEn: 'My Conversations',
-      screen: 'history' as Screen,
+      labelHi: "मेरी बातचीत",
+      labelEn: "My Conversations",
+      href: "/history",
     },
     {
+      id: "saved",
       icon: Bookmark,
-      labelHi: 'सहेजे गए',
-      labelEn: 'Saved',
-      screen: 'saved' as Screen,
+      labelHi: "सहेजे गए",
+      labelEn: "Saved",
+      href: "/saved",
     },
     {
+      id: "resources",
       icon: BookOpen,
-      labelHi: 'सीखने के संसाधन',
-      labelEn: 'Learning Resources',
-      screen: 'home' as Screen, // Placeholder
+      labelHi: "सीखने के संसाधन",
+      labelEn: "Learning Resources",
+      href: "/resources", // can be added later
     },
     {
+      id: "progress",
       icon: BarChart,
-      labelHi: 'मेरी प्रगति',
-      labelEn: 'My Progress',
-      screen: 'home' as Screen, // Placeholder
+      labelHi: "मेरी प्रगति",
+      labelEn: "My Progress",
+      href: "/progress", // can be added later
     },
   ];
 
   const bottomItems = [
     {
+      id: "settings",
       icon: Settings,
-      labelHi: 'सेटिंग्स',
-      labelEn: 'Settings',
-      screen: 'settings' as Screen,
+      labelHi: "सेटिंग्स",
+      labelEn: "Settings",
+      href: "/settings",
     },
     {
+      id: "help",
       icon: HelpCircle,
-      labelHi: 'मदद',
-      labelEn: 'Help',
-      screen: 'home' as Screen, // Placeholder
+      labelHi: "मदद",
+      labelEn: "Help",
+      href: "/help",
     },
     {
+      id: "logout",
       icon: LogOut,
-      labelHi: 'लॉग आउट',
-      labelEn: 'Log Out',
-      screen: 'home' as Screen, // Placeholder
+      labelHi: "लॉग आउट",
+      labelEn: "Log Out",
+      href: "/logout",
     },
   ];
 
@@ -70,7 +98,7 @@ export const NavigationDrawer = () => {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-250 animate-in fade-in"
+        className="fixed inset-0 bg-black/50 z-40"
         onClick={() => setIsDrawerOpen(false)}
       />
 
@@ -85,7 +113,9 @@ export const NavigationDrawer = () => {
             <div>
               <div className="font-bold">{userProfile.name}</div>
               <div className="text-sm opacity-90">
-                {language === 'hi' ? `${userProfile.grade} शिक्षक` : `${userProfile.grade} Teacher`}
+                {language === "hi"
+                  ? `${userProfile.grade} शिक्षक`
+                  : `${userProfile.grade} Teacher`}
               </div>
             </div>
           </div>
@@ -97,48 +127,49 @@ export const NavigationDrawer = () => {
           </button>
         </div>
 
-        {/* Main Menu Items */}
+        {/* Main Menu */}
         <nav className="py-4">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = currentScreen === item.screen;
+            const isActive = pathname === item.href;
+
             return (
               <button
-                key={item.screen}
-                onClick={() => navigate(item.screen)}
+                key={item.id} // ✅ UNIQUE
+                onClick={() => navigate(item.href)}
                 className={`w-full h-[52px] px-4 flex items-center gap-4 transition-colors ${
-                  isActive ? 'bg-[#DBEAFE] text-[#2563EB]' : 'text-[#111827] hover:bg-[#F9FAFB]'
+                  isActive
+                    ? "bg-[#DBEAFE] text-[#2563EB]"
+                    : "text-[#111827] hover:bg-[#F9FAFB]"
                 }`}
               >
                 <Icon className="w-6 h-6" />
-                <div className="text-left">
-                  <div>{language === 'hi' ? item.labelHi : item.labelEn}</div>
-                </div>
+                {language === "hi" ? item.labelHi : item.labelEn}
               </button>
             );
           })}
         </nav>
 
-        {/* Divider */}
         <div className="h-px bg-[#E5E7EB] mx-4" />
 
-        {/* Bottom Items */}
+        {/* Bottom Menu */}
         <nav className="py-4">
           {bottomItems.map((item) => {
             const Icon = item.icon;
-            const isActive = currentScreen === item.screen;
+            const isActive = pathname === item.href;
+
             return (
               <button
-                key={item.labelEn}
-                onClick={() => navigate(item.screen)}
+                key={item.id} // ✅ UNIQUE
+                onClick={() => navigate(item.href)}
                 className={`w-full h-[52px] px-4 flex items-center gap-4 transition-colors ${
-                  isActive ? 'bg-[#DBEAFE] text-[#2563EB]' : 'text-[#111827] hover:bg-[#F9FAFB]'
+                  isActive
+                    ? "bg-[#DBEAFE] text-[#2563EB]"
+                    : "text-[#111827] hover:bg-[#F9FAFB]"
                 }`}
               >
                 <Icon className="w-6 h-6" />
-                <div className="text-left">
-                  <div>{language === 'hi' ? item.labelHi : item.labelEn}</div>
-                </div>
+                {language === "hi" ? item.labelHi : item.labelEn}
               </button>
             );
           })}
