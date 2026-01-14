@@ -42,19 +42,50 @@ export const InputBar = () => {
     };
   }, [isRecording, setRecordingDuration]);
 
+  // const handleStartRecording = async () => {
+  //   try {
+  //     // Request microphone permission
+  //     await navigator.mediaDevices.getUserMedia({ audio: true });
+  //     setIsRecording(true);
+  //     setRecordingDuration(0);
+  //   } catch (error) {
+  //     console.error('Error accessing microphone:', error);
+  //     alert(language === 'hi' 
+  //       ? 'माइक्रोफ़ोन एक्सेस की अनुमति दें' 
+  //       : 'Please allow microphone access');
+  //   }
+  // };
   const handleStartRecording = async () => {
+    // 🛑 Must be in browser
+    if (typeof window === "undefined") return;
+
+    // 🛑 Feature detection (THIS FIXES YOUR ERROR)
+    if (
+      !navigator.mediaDevices ||
+      typeof navigator.mediaDevices.getUserMedia !== "function"
+    ) {
+      alert(
+        language === "hi"
+          ? "यह डिवाइस ऑडियो रिकॉर्डिंग को सपोर्ट नहीं करता"
+          : "Audio recording is not supported on this device"
+      );
+      return;
+    }
+
     try {
-      // Request microphone permission
       await navigator.mediaDevices.getUserMedia({ audio: true });
       setIsRecording(true);
       setRecordingDuration(0);
     } catch (error) {
-      console.error('Error accessing microphone:', error);
-      alert(language === 'hi' 
-        ? 'माइक्रोफ़ोन एक्सेस की अनुमति दें' 
-        : 'Please allow microphone access');
+      console.error("Microphone error:", error);
+      alert(
+        language === "hi"
+          ? "माइक्रोफ़ोन एक्सेस की अनुमति दें"
+          : "Please allow microphone access"
+      );
     }
   };
+
 
   const handleStopRecording = () => {
     setIsRecording(false);

@@ -1,12 +1,13 @@
-"use client";
-
+import type { Metadata } from "next";
 import "./globals.css";
+import Providers from "./providers";
 
-import { AppProvider } from "@/app/context/AppContext";
-import { ChatProvider } from "@/app/context/ChatContext";
-
-import { NavigationDrawer } from "@/app/components/NavigationDrawer";
-import { OfflineIndicator } from "@/app/components/OfflineIndicator";
+export const metadata: Metadata = {
+  title: "My Next PWA",
+  description: "PWA built with Next.js",
+  manifest: "/manifest.json",
+  themeColor: "#2563EB",
+};
 
 export default function RootLayout({
   children,
@@ -16,18 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="size-full">
-        <AppProvider>
-          <ChatProvider>
-            {/* Persistent UI */}
-            <NavigationDrawer />
-            <OfflineIndicator />
-
-            {/* Route-based screens */}
-            <main className="size-full">
-              {children}
-            </main>
-          </ChatProvider>
-        </AppProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

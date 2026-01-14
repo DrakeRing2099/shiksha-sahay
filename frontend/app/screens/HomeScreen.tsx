@@ -60,8 +60,8 @@ const HomeScreenContent = () => {
 
 export const HomeScreen = () => {
   return (
-    <ChatProvider>
+    // <ChatProvider>
       <HomeScreenContent />
-    </ChatProvider>
+    // {/* </ChatProvider> */}
   );
 };
