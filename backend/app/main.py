@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+
+from app.api.coach import router as coach_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -15,3 +17,4 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
+app.include_router(coach_router)
