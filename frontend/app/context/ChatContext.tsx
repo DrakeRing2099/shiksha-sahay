@@ -1,19 +1,19 @@
 "use client";
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from "react";
 
 export interface Message {
   id: string;
-  type: 'user' | 'ai';
+  type: "user" | "ai";
   content: string;
   timestamp: Date;
   isVoice?: boolean;
   voiceDuration?: number;
-  status?: 'sending' | 'sent' | 'delivered';
+  status?: "sending" | "sent" | "delivered";
 }
 
 interface ChatContextType {
   messages: Message[];
-  addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void;
+  addMessage: (message: Omit<Message, "id" | "timestamp">) => void;
   isRecording: boolean;
   setIsRecording: (recording: boolean) => void;
   recordingDuration: number;
@@ -26,6 +26,9 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+
 export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -33,28 +36,70 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isAIThinking, setIsAIThinking] = useState(false);
   const [contextVisible, setContextVisible] = useState(true);
 
-  const addMessage = (message: Omit<Message, 'id' | 'timestamp'>) => {
-    const newMessage: Message = {
+  const addMessage = async (
+    message: Omit<Message, "id" | "timestamp">
+  ) => {
+    // 1️⃣ Add user message immediately
+    const userMessage: Message = {
       ...message,
       id: Date.now().toString(),
       timestamp: new Date(),
     };
-    setMessages((prev) => [...prev, newMessage]);
 
-    // Simulate AI response
-    if (message.type === 'user') {
+    setMessages((prev) => [...prev, userMessage]);
+
+    // 2️⃣ If user message → call backend
+    if (message.type === "user") {
       setIsAIThinking(true);
-      setTimeout(() => {
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/coach`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            teacher_id: "a1b2c3d4-1234-4abc-9def-987654321000", // ✅ existing UUID
+            prompt: message.content,
+            grade: 5,
+            subject: "Mathematics",
+            language: "English",
+            time_left_minutes: 10,
+          }),
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to get AI response");
+        }
+
+        const data = await res.json();
+
         const aiMessage: Message = {
           id: (Date.now() + 1).toString(),
-          type: 'ai',
-          content: generateMockAIResponse(),
+          type: "ai",
+          content: data.output || "No response from AI",
           timestamp: new Date(),
-          status: 'delivered',
+          status: "delivered",
         };
+
         setMessages((prev) => [...prev, aiMessage]);
+      } catch (error) {
+        console.error("AI error:", error);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 2).toString(),
+            type: "ai",
+            content:
+              "⚠️ Sorry, I couldn't process your request. Please try again.",
+            timestamp: new Date(),
+            status: "delivered",
+          },
+        ]);
+      } finally {
         setIsAIThinking(false);
-      }, 2000);
+      }
     }
   };
 
@@ -80,47 +125,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 export const useChat = () => {
   const context = useContext(ChatContext);
-  if (context === undefined) {
-    throw new Error('useChat must be used within a ChatProvider');
+  if (!context) {
+    throw new Error("useChat must be used within a ChatProvider");
   }
   return context;
 };
-
-// Mock AI response generator
-function generateMockAIResponse(): string {
-  const responses = [
-    `मैं समझता हूं कि कक्षा प्रबंधन चुनौतीपूर्ण हो सकता है।
-
-यहां 3 रणनीतियां हैं:
-
-**1. समूह गतिविधि**
-बच्चों को 4-5 के समूहों में बांटें। प्रत्येक समूह को एक नेता बनाएं जो शोर को नियंत्रित करने में मदद करे।
-
-**2. ध्यान संकेत**
-एक विशेष ताली या संगीत का उपयोग करें जिसे सुनकर बच्चे शांत हो जाएं।
-
-**3. पॉजिटिव रीइन्फोर्समेंट**
-शांत रहने वाले बच्चों को स्टार या प्रशंसा दें।`,
-    
-    `यह एक बढ़िया सवाल है! मैं इसमें आपकी मदद कर सकता हूं।
-
-**समाधान:**
-
-• विजुअल एड्स का उपयोग करें - चार्ट, चित्र, या वास्तविक वस्तुएं
-• छोटे-छोटे समूहों में अभ्यास करवाएं
-• हाथ से की जाने वाली गतिविधियों को शामिल करें
-
-**उदाहरण:**
-यदि आप घटाव सिखा रहे हैं, तो पत्थरों या बटनों का उपयोग करें जिन्हें बच्चे देख और छू सकें।`,
-    
-    `बहुत अच्छा प्रश्न! आइए इसे चरण-दर-चरण देखें:
-
-**तरीका 1:** कहानियों के माध्यम से
-**तरीका 2:** खेल-खेल में सिखाना
-**तरीका 3:** व्यावहारिक उदाहरण
-
-क्या आप चाहेंगे कि मैं किसी विशेष तरीके को और विस्तार से समझाऊं?`,
-  ];
-  
-  return responses[Math.floor(Math.random() * responses.length)];
-}

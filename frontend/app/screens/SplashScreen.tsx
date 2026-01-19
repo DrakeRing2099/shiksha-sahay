@@ -2,7 +2,7 @@
 
 export const SplashScreen = () => {
   return (
-    <div className="flex flex-col items-center justify-center h-full bg-gradient-to-b from-[#F9FAFB] to-white">
+    <div className="flex flex-col items-center justify-center h-full bg-linear-to-b from-[#F9FAFB] to-white">
       <div className="w-24 h-24 rounded-full bg-[#2563EB] flex items-center justify-center mb-6 shadow-lg">
         <svg
           className="w-12 h-12 text-white"
