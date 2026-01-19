@@ -1,9 +1,20 @@
 # app/schemas/auth.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Literal, Optional
 
 
 Channel = Literal["phone", "email"]
+
+
+class SignupRequestOTPIn(BaseModel):
+    name: str = Field(..., min_length=1)
+    phone: str = Field(..., min_length=6)
+    email: EmailStr
+    school_id: Optional[str] = None  # UUID as string (optional)
+
+class SignupVerifyOTPIn(BaseModel):
+    phone: str
+    otp: str = Field(..., min_length=4, max_length=8)
 
 
 class RequestOTPIn(BaseModel):

@@ -9,6 +9,9 @@ from app.models.core import Teacher
 from app.utils.auth import hash_otp, verify_otp_hash, create_access_token
 from app.api.auth import _normalize_dest
 
+from app.models.core import Teacher
+from app.models.auth import OTPCode
+
 
 # -----------------------
 # 1) Unit tests (utils)
@@ -231,3 +234,147 @@ def test_revoked_refresh_token_usage(client, db_session):
 
     r = client.post("/auth/refresh", json={"refresh_token": refresh})
     assert r.status_code == 401
+
+
+def test_signup_happy_path_creates_teacher_and_tokens(client, db_session):
+    payload = {
+        "name": "New Teacher",
+        "phone": "+917777777777",
+        "email": "newteacher@school.com"
+    }
+
+    r = client.post("/auth/signup/request-otp", json=payload)
+    assert r.status_code == 200
+    data = r.json()
+    assert data.get("ok") is True
+    otp = data.get("dev_otp")
+    assert otp is not None
+
+    # teacher exists, onboarding_status=0 before verify
+    t = db_session.query(Teacher).filter(Teacher.phone == "+917777777777").first()
+    assert t is not None
+    assert int(t.onboarding_status) == 0
+
+    # otp row exists
+    code = (
+        db_session.query(OTPCode)
+        .filter(OTPCode.destination == "+917777777777")
+        .order_by(OTPCode.created_at.desc())
+        .first()
+    )
+    assert code is not None
+    assert code.used_at is None
+
+    # verify otp -> tokens
+    v = client.post("/auth/signup/verify-otp", json={"phone": "+917777777777", "otp": otp})
+    assert v.status_code == 200
+    out = v.json()
+    assert "access_token" in out
+    assert "refresh_token" in out
+
+    # onboarding_status flips to 1
+    db_session.refresh(t)
+    assert int(t.onboarding_status) == 1
+
+
+def test_signup_conflict_if_teacher_exists(client, db_session):
+    # create existing teacher
+    t = Teacher(name="Existing", phone="+916666666666", email="exists@school.com")
+    db_session.add(t)
+    db_session.commit()
+
+    payload = {
+        "name": "Someone",
+        "phone": "+916666666666",
+        "email": "new@school.com"
+    }
+    r = client.post("/auth/signup/request-otp", json=payload)
+    assert r.status_code == 409
+
+    payload2 = {
+        "name": "Someone",
+        "phone": "+915555555555",
+        "email": "exists@school.com"
+    }
+    r2 = client.post("/auth/signup/request-otp", json=payload2)
+    assert r2.status_code == 409
+
+
+def test_signup_verify_wrong_otp_increments_attempts(client, db_session):
+    payload = {
+        "name": "Teacher X",
+        "phone": "+914444444444",
+        "email": "teachx@school.com"
+    }
+    r = client.post("/auth/signup/request-otp", json=payload)
+    assert r.status_code == 200
+
+    # wrong otp
+    v = client.post("/auth/signup/verify-otp", json={"phone": "+914444444444", "otp": "000000"})
+    assert v.status_code == 400
+
+    code = (
+        db_session.query(OTPCode)
+        .filter(OTPCode.destination == "+914444444444")
+        .order_by(OTPCode.created_at.desc())
+        .first()
+    )
+    assert code.attempts == 1
+
+
+def test_signup_verify_expired_otp(client, db_session):
+    payload = {
+        "name": "Teacher Y",
+        "phone": "+913333333333",
+        "email": "teachy@school.com"
+    }
+    r = client.post("/auth/signup/request-otp", json=payload)
+    assert r.status_code == 200
+    otp = r.json()["dev_otp"]
+
+    code = (
+        db_session.query(OTPCode)
+        .filter(OTPCode.destination == "+913333333333")
+        .order_by(OTPCode.created_at.desc())
+        .first()
+    )
+    code.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    db_session.add(code)
+    db_session.commit()
+
+    v = client.post("/auth/signup/verify-otp", json={"phone": "+913333333333", "otp": otp})
+    assert v.status_code == 400
+    assert "expired" in v.text.lower()
+
+
+def test_signup_replay_attack_used_otp(client, db_session):
+    payload = {
+        "name": "Teacher Z",
+        "phone": "+912222222222",
+        "email": "teachz@school.com"
+    }
+    otp = client.post("/auth/signup/request-otp", json=payload).json()["dev_otp"]
+
+    first = client.post("/auth/signup/verify-otp", json={"phone": "+912222222222", "otp": otp})
+    assert first.status_code == 200
+
+    second = client.post("/auth/signup/verify-otp", json={"phone": "+912222222222", "otp": otp})
+    assert second.status_code == 400
+    assert "used" in second.text.lower()
+
+
+def test_signup_request_throttling(client, db_session, monkeypatch):
+    monkeypatch.setenv("OTP_REQUEST_COOLDOWN_SEC", "60")
+    payload = {
+        "name": "Teacher T",
+        "phone": "+911111111111",
+        "email": "teachert@school.com"
+    }
+
+    first = client.post("/auth/signup/request-otp", json=payload)
+    assert first.status_code == 200
+
+    second = client.post("/auth/signup/request-otp", json=payload)
+    assert second.status_code == 429
+
+

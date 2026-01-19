@@ -3,12 +3,13 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from sqlalchemy.exc import IntegrityError
 import re
 
 from app.db.session import get_db
 from app.models.core import Teacher  # adjust import path to your Teacher model
 from app.models.auth import OTPCode, OTPChannel, AuthSession
-from app.schemas.auth import RequestOTPIn, VerifyOTPIn, TokenOut, LogoutIn
+from app.schemas.auth import RequestOTPIn, VerifyOTPIn, TokenOut, LogoutIn, SignupRequestOTPIn, SignupVerifyOTPIn
 from app.utils.auth import (
     gen_otp, hash_otp, verify_otp_hash,
     create_access_token, gen_refresh_token, hash_refresh,
@@ -46,6 +47,127 @@ def _as_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+
+@router.post("/signup/request-otp")
+def signup_request_otp(payload: SignupRequestOTPIn, db: Session = Depends(get_db)):
+    phone = _normalize_phone(payload.phone)
+    email = _normalize_dest("email", payload.email)
+
+    # If already exists -> block or reuse pending signup
+    existing = db.query(Teacher).filter((Teacher.phone == phone) | (Teacher.email == email)).first()
+    if existing:
+        if existing.phone != phone or existing.email != email:
+            raise HTTPException(status_code=409, detail="Teacher already registered")
+        if int(getattr(existing, "onboarding_status", 0)) == 1:
+            raise HTTPException(status_code=409, detail="Teacher already registered")
+        teacher = existing
+    else:
+        # Create teacher in onboarding_status=0 (pending)
+        teacher = Teacher(
+            name=payload.name.strip(),
+            phone=phone,
+            email=email,
+            school_id=payload.school_id,
+            onboarding_status=0,
+        )
+        db.add(teacher)
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            raise HTTPException(status_code=409, detail="Teacher already registered")
+
+    # Send OTP to phone (signup verifies ownership)
+    cooldown_sec = int(__import__("os").environ.get("OTP_REQUEST_COOLDOWN_SEC", "60"))
+    if cooldown_sec > 0:
+        last_code = (
+            db.query(OTPCode)
+            .filter(OTPCode.destination == phone, OTPCode.channel == OTPChannel.phone)
+            .order_by(desc(OTPCode.created_at))
+            .first()
+        )
+        if last_code:
+            last_created = _as_utc(last_code.created_at)
+            if datetime.now(timezone.utc) - last_created < timedelta(seconds=cooldown_sec):
+                raise HTTPException(status_code=429, detail="Too many OTP requests")
+
+    otp = gen_otp(6)
+    code = OTPCode(
+        teacher_id=teacher.id,
+        channel=OTPChannel.phone,
+        destination=phone,
+        otp_hash=hash_otp(phone, otp),
+        expires_at=otp_expiry(),
+    )
+    db.add(code)
+    db.commit()
+
+    send_otp("phone", phone, otp)
+
+    import os
+    if os.environ.get("OTP_DEV_RETURN", "1") == "1":
+        return {"ok": True, "dev_otp": otp, "teacher_id": str(teacher.id)}
+    return {"ok": True}
+
+
+@router.post("/signup/verify-otp", response_model=TokenOut)
+def signup_verify_otp(payload: SignupVerifyOTPIn, db: Session = Depends(get_db)):
+    phone = _normalize_phone(payload.phone)
+    otp = payload.otp.strip()
+
+    teacher = db.query(Teacher).filter(Teacher.phone == phone).first()
+    if not teacher:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+
+    # latest OTP for this phone
+    code = (
+        db.query(OTPCode)
+        .filter(OTPCode.destination == phone, OTPCode.channel == OTPChannel.phone)
+        .order_by(OTPCode.created_at.desc())
+        .first()
+    )
+    if not code:
+        raise HTTPException(status_code=400, detail="No OTP requested")
+    if code.used_at is not None:
+        raise HTTPException(status_code=400, detail="OTP already used")
+
+    now = datetime.now(timezone.utc)
+    if code.expires_at < now:
+        raise HTTPException(status_code=400, detail="OTP expired")
+
+    max_attempts = int(__import__("os").environ.get("OTP_MAX_ATTEMPTS", "5"))
+    if code.attempts >= max_attempts:
+        raise HTTPException(status_code=429, detail="Too many attempts")
+
+    if not verify_otp_hash(phone, otp, code.otp_hash):
+        code.attempts += 1
+        db.add(code)
+        db.commit()
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
+    # mark used + mark onboarded (verified)
+    code.used_at = now
+    teacher.onboarding_status = 1
+    db.add(code)
+    db.add(teacher)
+
+    # issue tokens
+    access = create_access_token(sub=str(teacher.id))
+    refresh = gen_refresh_token()
+    sess = AuthSession(
+        teacher_id=teacher.id,
+        refresh_token_hash=hash_refresh(refresh),
+        expires_at=refresh_expiry(),
+    )
+    db.add(sess)
+    db.commit()
+
+    return TokenOut(access_token=access, refresh_token=refresh)
+
+
+
 
 
 @router.post("/request-otp")
