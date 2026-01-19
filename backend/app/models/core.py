@@ -8,6 +8,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
+from sqlalchemy import text
+
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.db.base import Base
@@ -79,45 +81,34 @@ class Solution(Base):
 # -----------------------
 # Teacher tables
 # -----------------------
+# ✅ Teacher: make server_default proper SQL (instead of a string)
 class Teacher(Base):
     __tablename__ = "teachers"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     name = Column(Text, nullable=False)
+    language = Column(Text, nullable=True)
 
-    # ✅ required contact fields
     email = Column(Text, nullable=False, unique=True)
-    phone = Column(Text, nullable=False, unique=True)  # store as text (keeps leading 0, +91 etc.)
+    phone = Column(Text, nullable=False, unique=True)
 
     years_experience = Column(Integer, nullable=True)
     school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
 
-    onboarding_status = Column(Integer, nullable=False, server_default="0")  # 0/1 (bool-ish)
+    onboarding_status = Column(Integer, nullable=False, server_default=text("0"))  # ✅
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     __table_args__ = (
-        CheckConstraint("years_experience IS NULL OR years_experience >= 0",
-                        name="ck_teacher_years_experience_nonneg"),
+        CheckConstraint(
+            "years_experience IS NULL OR years_experience >= 0",
+            name="ck_teacher_years_experience_nonneg"
+        ),
     )
 
-    __tablename__ = "teachers"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-
-    name = Column(Text, nullable=False)               # "Name"
-    language = Column(Text, nullable=True)            # preferred language
-    years_experience = Column(Integer, nullable=True) # "Years of Experience"
-
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
-
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    __table_args__ = (
-        CheckConstraint("years_experience IS NULL OR years_experience >= 0", name="ck_teacher_years_experience_nonneg"),
-    )
+    
 
 
 class TeacherStyle(Base):
@@ -246,28 +237,14 @@ class SessionFeedback(Base):
 
     summary = Column(Text, nullable=True)
 
-    observations = Column(JSONB, nullable=False, server_default="[]")
-    suggestions = Column(JSONB, nullable=False, server_default="[]")
+    observations = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))  # ✅
+    suggestions  = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))  # ✅
     reflection_prompt = Column(Text, nullable=True)
 
     generated_by = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    __tablename__ = "session_feedback"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="CASCADE"), nullable=False, unique=True)
-
-    summary = Column(Text, nullable=True)
-
-    # IMPORTANT: rename observation -> observations (array). JSONB is ok here because it's generated text bullets.
-    # But if you want strict normalization, you can store bullets in a separate table later.
-    observations = Column(Text, nullable=True)  # simplest for now; or keep JSONB if you want
-    suggestions = Column(Text, nullable=True)
-    reflection_prompt = Column(Text, nullable=True)
-
-    generated_by = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
 
 
 class Language(Base):
