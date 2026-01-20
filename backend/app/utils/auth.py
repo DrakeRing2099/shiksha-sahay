@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Tuple
 
 from jose import jwt
+from jose.exceptions import JWTError
 
 # ENV:
 # AUTH_JWT_SECRET=...
@@ -50,6 +51,21 @@ def create_access_token(sub: str) -> str:
         "iat": _now(),
     }
     return jwt.encode(payload, secret, algorithm=alg)
+
+
+def decode_access_token(token: str) -> str:
+    secret = os.environ.get("AUTH_JWT_SECRET", "dev-secret-change-me")
+    alg = os.environ.get("AUTH_JWT_ALG", "HS256")
+    try:
+        payload = jwt.decode(token, secret, algorithms=[alg])
+    except JWTError as exc:
+        raise ValueError("Invalid token") from exc
+    if payload.get("type") != "access":
+        raise ValueError("Invalid token type")
+    sub = payload.get("sub")
+    if not sub:
+        raise ValueError("Missing subject")
+    return str(sub)
 
 
 def gen_refresh_token() -> str:

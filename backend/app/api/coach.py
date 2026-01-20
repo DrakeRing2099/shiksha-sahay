@@ -6,12 +6,12 @@ from app.core.llm import get_llm, LLMError
 from app.core.context_resolver import resolve_context
 from app.core.prompt_builder import build_prompt
 from app.db.session import get_db
+from app.api.deps import get_current_teacher_id
 
 router = APIRouter(prefix="/api", tags=["coach"])
 
 
 class CoachRequest(BaseModel):
-    teacher_id: str
     prompt: str
     grade: int | None = None
     subject: str | None = None
@@ -20,11 +20,15 @@ class CoachRequest(BaseModel):
 
 
 @router.post("/coach")
-def coach(req: CoachRequest, db: Session = Depends(get_db)):
+def coach(
+    req: CoachRequest,
+    db: Session = Depends(get_db),
+    teacher_id: str = Depends(get_current_teacher_id),
+):
     try:
         ctx = resolve_context(
             db=db,
-            teacher_id=req.teacher_id,
+            teacher_id=teacher_id,
             raw_prompt=req.prompt,
             grade=req.grade,
             subject=req.subject,

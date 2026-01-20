@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models import SolutionOutcome
+from app.utils.auth import create_access_token
 
 client = TestClient(app)
 
@@ -48,7 +49,6 @@ def test_pipeline_prompt_is_reflected_in_llm_output():
 
         # ---- Half-ass input (missing grade/subject/language) ----
         payload = {
-            "teacher_id": "t1",
             "prompt": "Group subtraction got noisy. Kids stuck when tens digit is 0. Need quick fix.",
             "grade": None,
             "subject": None,
@@ -56,7 +56,13 @@ def test_pipeline_prompt_is_reflected_in_llm_output():
             "time_left_minutes": 10
         }
 
-        r = client.post("/api/coach", json=payload)
+        os.environ.setdefault("AUTH_JWT_SECRET", "test-secret")
+        os.environ.setdefault("AUTH_JWT_ALG", "HS256")
+        os.environ.setdefault("AUTH_ACCESS_MIN", "30")
+        token = create_access_token(sub="t1")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        r = client.post("/api/coach", json=payload, headers=headers)
         assert r.status_code == 200, r.text
 
         data = r.json()
