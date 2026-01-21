@@ -3,8 +3,8 @@ import "./globals.css";
 import Providers from "./providers";
 
 export const metadata: Metadata = {
-  title: "My Next PWA",
-  description: "PWA built with Next.js",
+  title: "Shiksha Sahay",
+  description: "App made for teachers support",
   manifest: "/manifest.json",
   themeColor: "#2563EB",
 };
