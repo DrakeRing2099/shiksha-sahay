@@ -29,6 +29,7 @@ export interface Conversation {
   title: string;
   lastMessagePreview?: string;
   updatedAt: number;
+  deletedAt?: number;
 }
 
 /* 🆕 Message now belongs to a conversation */

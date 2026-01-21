@@ -70,20 +70,10 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   ========================= */
 
   const startNewChat = async () => {
-    if (!teacher?.id) return;
-
-    const newConversationId = crypto.randomUUID();
-
-    await db.conversations.put({
-      id: newConversationId,
-      teacherId: teacher.id,
-      title: "New Conversation",
-      updatedAt: Date.now(),
-    });
-
-    setConversationId(newConversationId);
+    setConversationId(null);
     setMessages([]);
   };
+
 
   const loadConversation = async (id: string) => {
     if (!teacher?.id) return;
@@ -165,17 +155,18 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // 🔹 Auto-create conversation on first message
     if (!activeConversationId) {
-      activeConversationId = crypto.randomUUID();
+    activeConversationId = crypto.randomUUID();
 
-      await db.conversations.put({
-        id: activeConversationId,
-        teacherId: teacher.id,
-        title: content.slice(0, 40),
-        updatedAt: Date.now(),
-      });
+    await db.conversations.put({
+      id: activeConversationId,
+      teacherId: teacher.id,
+      title: content.slice(0, 60),
+      lastMessagePreview: content.slice(0, 80),
+      updatedAt: Date.now(),
+    });
 
-      setConversationId(activeConversationId);
-    }
+    setConversationId(activeConversationId);
+  }
 
     const messageId = crypto.randomUUID();
 
@@ -214,6 +205,11 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         await db.messages.put(aiMessage);
         setMessages((prev) => [...prev, aiMessage]);
+        await db.conversations.update(activeConversationId, {
+          lastMessagePreview: data.output?.slice(0, 80),
+          updatedAt: Date.now(),
+        });
+
       } catch {
         await db.messages.update(messageId, { status: "failed" });
       } finally {
