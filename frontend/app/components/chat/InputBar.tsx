@@ -1,28 +1,40 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
-import { useApp } from '@/app/context/AppContext';
-import { useChat } from '@/app/context/ChatContext';
-import { Mic, Send, Square } from 'lucide-react';
+
+import { useState, useEffect, useRef } from "react";
+import { useApp } from "@/app/context/AppContext";
+import { useChat } from "@/app/context/ChatContext";
+import { Mic, Send, Square } from "lucide-react";
 
 export const InputBar = () => {
   const { language } = useApp();
-  const { addMessage, isRecording, setIsRecording, recordingDuration, setRecordingDuration } = useChat();
-  const [inputText, setInputText] = useState('');
+  const { sendMessage, isAIThinking } = useChat();
+
+  const [inputText, setInputText] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
   const [waveformHeights, setWaveformHeights] = useState<number[]>([]);
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
+
+  /* =========================
+     Recording timer + waveform
+  ========================= */
 
   useEffect(() => {
     if (isRecording) {
       startTimeRef.current = Date.now();
+
       timerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        const elapsed = Math.floor(
+          (Date.now() - startTimeRef.current) / 1000
+        );
         setRecordingDuration(elapsed);
-        
-        // Generate random waveform heights for animation
-        setWaveformHeights(Array.from({ length: 20 }, () => Math.random() * 40 + 10));
-        
-        // Auto-stop at 2 minutes
+
+        setWaveformHeights(
+          Array.from({ length: 20 }, () => Math.random() * 40 + 10)
+        );
+
         if (elapsed >= 120) {
           handleStopRecording();
         }
@@ -36,30 +48,17 @@ export const InputBar = () => {
     }
 
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+      if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isRecording, setRecordingDuration]);
+  }, [isRecording]);
 
-  // const handleStartRecording = async () => {
-  //   try {
-  //     // Request microphone permission
-  //     await navigator.mediaDevices.getUserMedia({ audio: true });
-  //     setIsRecording(true);
-  //     setRecordingDuration(0);
-  //   } catch (error) {
-  //     console.error('Error accessing microphone:', error);
-  //     alert(language === 'hi' 
-  //       ? 'माइक्रोफ़ोन एक्सेस की अनुमति दें' 
-  //       : 'Please allow microphone access');
-  //   }
-  // };
+  /* =========================
+     Voice recording handlers
+  ========================= */
+
   const handleStartRecording = async () => {
-    // 🛑 Must be in browser
     if (typeof window === "undefined") return;
 
-    // 🛑 Feature detection (THIS FIXES YOUR ERROR)
     if (
       !navigator.mediaDevices ||
       typeof navigator.mediaDevices.getUserMedia !== "function"
@@ -86,47 +85,46 @@ export const InputBar = () => {
     }
   };
 
-
-  const handleStopRecording = () => {
+  const handleStopRecording = async () => {
     setIsRecording(false);
     const duration = recordingDuration;
     setRecordingDuration(0);
-    
-    // Add voice message
-    addMessage({
-      type: 'user',
-      content: language === 'hi' 
-        ? 'यह एक वॉइस मैसेज है (रिकॉर्डिंग फीचर डेमो के लिए)' 
-        : 'This is a voice message (recording feature for demo)',
-      isVoice: true,
-      voiceDuration: duration,
-      status: 'sent',
-    });
+
+    // For now: send a text placeholder
+    await sendMessage(
+      language === "hi"
+        ? `🎤 वॉइस मैसेज (${duration}s)`
+        : `🎤 Voice message (${duration}s)`
+    );
   };
 
-  const handleSendText = () => {
-    if (inputText.trim()) {
-      addMessage({
-        type: 'user',
-        content: inputText.trim(),
-        status: 'sent',
-      });
-      setInputText('');
-    }
+  /* =========================
+     Text messaging
+  ========================= */
+
+  const handleSendText = async () => {
+    if (!inputText.trim()) return;
+
+    await sendMessage(inputText.trim());
+    setInputText("");
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const handleKeyPress = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendText();
+      await handleSendText();
     }
   };
 
   const formatRecordingTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
+
+  /* =========================
+     Recording UI
+  ========================= */
 
   if (isRecording) {
     return (
@@ -134,32 +132,30 @@ export const InputBar = () => {
         <div className="flex items-center justify-between mb-3">
           <button
             onClick={handleStopRecording}
-            className="w-12 h-12 rounded-full bg-[#EF4444] flex items-center justify-center shadow-lg hover:bg-[#DC2626] transition-colors"
-            aria-label="Stop recording"
+            className="w-12 h-12 rounded-full bg-[#EF4444] flex items-center justify-center shadow-lg hover:bg-[#DC2626]"
           >
             <Square className="w-5 h-5 text-white fill-white" />
           </button>
-          
+
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-[#EF4444] animate-pulse" />
-            <span className="text-sm font-medium text-[#111827]">
-              {language === 'hi' ? 'रिकॉर्ड हो रहा है' : 'Recording...'}
+            <span className="text-sm font-medium">
+              {language === "hi" ? "रिकॉर्ड हो रहा है" : "Recording..."}
             </span>
-            <span className="text-sm font-mono text-[#6B7280]">
+            <span className="text-sm font-mono text-gray-500">
               {formatRecordingTime(recordingDuration)}
             </span>
           </div>
-          
-          <div className="w-12" /> {/* Spacer for centering */}
+
+          <div className="w-12" />
         </div>
 
-        {/* Waveform animation */}
         <div className="flex items-center justify-center gap-1 h-12">
           {waveformHeights.map((height, i) => (
             <div
               key={i}
-              className="w-1 bg-[#F59E0B] rounded-full transition-all duration-100"
-              style={{ height: `${height}px` }}
+              className="w-1 bg-[#F59E0B] rounded-full"
+              style={{ height }}
             />
           ))}
         </div>
@@ -167,36 +163,41 @@ export const InputBar = () => {
     );
   }
 
+  /* =========================
+     Normal input UI
+  ========================= */
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-20 bg-white border-t border-[#E5E7EB] px-4 flex items-center gap-3 z-40">
+    <div className="fixed bottom-0 left-0 right-0 h-20 bg-white border-t px-4 flex items-center gap-3 z-40">
       <button
         onClick={handleStartRecording}
-        className="w-12 h-12 rounded-full bg-[#10B981] hover:bg-[#059669] flex items-center justify-center shadow-lg transition-colors flex-shrink-0"
-        aria-label="Start voice recording"
+        className="w-12 h-12 rounded-full bg-[#10B981] hover:bg-[#059669] flex items-center justify-center"
       >
         <Mic className="w-6 h-6 text-white" />
       </button>
-      
+
       <input
         type="text"
         value={inputText}
         onChange={(e) => setInputText(e.target.value)}
-        onKeyPress={handleKeyPress}
-        placeholder={language === 'hi' ? 'अपनी समस्या लिखें...' : 'Type your problem...'}
-        className="flex-1 h-12 px-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-full text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/20 transition-all"
+        onKeyDown={handleKeyPress}
+        placeholder={
+          language === "hi" ? "अपनी समस्या लिखें..." : "Type your problem..."
+        }
+        className="flex-1 h-12 px-4 rounded-full border bg-gray-50 focus:outline-none"
+        disabled={isAIThinking}
       />
-      
+
       <button
         onClick={handleSendText}
         disabled={!inputText.trim()}
-        className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${
+        className={`w-10 h-10 rounded-full flex items-center justify-center ${
           inputText.trim()
-            ? 'bg-[#2563EB] hover:bg-[#1D4ED8] text-white'
-            : 'bg-[#9CA3AF] text-white cursor-not-allowed'
+            ? "bg-blue-600 hover:bg-blue-700"
+            : "bg-gray-400 cursor-not-allowed"
         }`}
-        aria-label="Send message"
       >
-        <Send className="w-5 h-5" />
+        <Send className="w-5 h-5 text-white" />
       </button>
     </div>
   );

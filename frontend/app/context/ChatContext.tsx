@@ -1,104 +1,210 @@
 "use client";
-import React, { createContext, useContext, useState, ReactNode } from "react";
+
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
+import { db } from "@/lib/db";
+import { useAuth } from "@/app/context/AuthContext";
+import { coachRequest } from "@/lib/api";
+import { useApp } from "@/app/context/AppContext";
+
+/* =========================
+   Types
+========================= */
 
 export interface Message {
   id: string;
+  teacherId: string;
   type: "user" | "ai";
   content: string;
-  timestamp: Date;
-  isVoice?: boolean;
-  voiceDuration?: number;
-  status?: "sending" | "sent" | "delivered";
+  timestamp: number;
+  status: "pending" | "sent" | "failed";
 }
 
 interface ChatContextType {
   messages: Message[];
-  addMessage: (message: Omit<Message, "id" | "timestamp">) => void;
-  isRecording: boolean;
-  setIsRecording: (recording: boolean) => void;
-  recordingDuration: number;
-  setRecordingDuration: (duration: number) => void;
+  sendMessage: (content: string) => Promise<void>;
   isAIThinking: boolean;
-  setIsAIThinking: (thinking: boolean) => void;
-  contextVisible: boolean;
-  setContextVisible: (visible: boolean) => void;
 }
+
+/* =========================
+   Context
+========================= */
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+/* =========================
+   Provider
+========================= */
 
 export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [isAIThinking, setIsAIThinking] = useState(false);
-  const [contextVisible, setContextVisible] = useState(true);
+  const { teacher } = useAuth();
+  const { userProfile, language } = useApp();
 
-  const addMessage = async (
-    message: Omit<Message, "id" | "timestamp">
-  ) => {
-    // 1️⃣ Add user message immediately
-    const userMessage: Message = {
-      ...message,
-      id: Date.now().toString(),
-      timestamp: new Date(),
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isAIThinking, setIsAIThinking] = useState(false);
+
+  /* =========================
+     Helpers
+  ========================= */
+
+  const buildCoachPayload = (prompt: string) => ({
+    prompt,
+    grade: userProfile.grade ? Number(userProfile.grade) : undefined,
+    subject: userProfile.subject || undefined,
+    language,
+    time_left_minutes: 10,
+  });
+
+  /* =========================
+     Load messages from IndexedDB
+  ========================= */
+
+  useEffect(() => {
+    if (!teacher?.id) return;
+
+    const loadMessages = async () => {
+      const localMessages = await db.messages
+        .where("teacherId")
+        .equals(teacher.id)
+        .sortBy("timestamp");
+
+      setMessages(localMessages);
     };
 
+    loadMessages();
+  }, [teacher?.id]);
+
+  /* =========================
+     Online sync trigger
+  ========================= */
+
+  useEffect(() => {
+    if (!teacher?.id) return;
+
+    const sync = async () => {
+      if (!navigator.onLine) return;
+
+      const pending = await db.pending_actions
+        .where("type")
+        .equals("SEND_MESSAGE")
+        .toArray();
+
+      for (const action of pending) {
+        try {
+          const data = await coachRequest(
+            buildCoachPayload(action.payload.content)
+          );
+
+          await db.messages.update(action.payload.id, { status: "sent" });
+
+          const aiMessage: Message = {
+            id: crypto.randomUUID(),
+            teacherId: teacher.id,
+            type: "ai",
+            content: data.output || "No response",
+            timestamp: Date.now(),
+            status: "sent",
+          };
+
+          await db.messages.put(aiMessage);
+          await db.pending_actions.delete(action.id);
+        } catch {
+          await db.pending_actions.update(action.id, {
+            retries: action.retries + 1,
+          });
+        }
+      }
+
+      const updated = await db.messages
+        .where("teacherId")
+        .equals(teacher.id)
+        .sortBy("timestamp");
+
+      setMessages(updated);
+    };
+
+    // 🔑 CRITICAL: run once + on reconnect
+    sync();
+    window.addEventListener("online", sync);
+
+    return () => window.removeEventListener("online", sync);
+  }, [teacher?.id, userProfile, language]);
+
+  /* =========================
+     Public API
+  ========================= */
+
+  const sendMessage = async (content: string) => {
+    if (!teacher?.id) return;
+
+    const messageId = crypto.randomUUID();
+
+    const userMessage: Message = {
+      id: messageId,
+      teacherId: teacher.id,
+      type: "user",
+      content,
+      timestamp: Date.now(),
+      status: "pending",
+    };
+
+    // 1️⃣ Save locally
+    await db.messages.put(userMessage);
+
+    // 2️⃣ Optimistic UI
     setMessages((prev) => [...prev, userMessage]);
 
-    // 2️⃣ If user message → call backend
-    if (message.type === "user") {
-      setIsAIThinking(true);
-
+    // 3️⃣ Online → send now
+    if (navigator.onLine) {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/coach`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            teacher_id: "a1b2c3d4-1234-4abc-9def-987654321000", // ✅ existing UUID
-            prompt: message.content,
-            grade: 5,
-            subject: "Mathematics",
-            language: "English",
-            time_left_minutes: 10,
-          }),
-        });
+        setIsAIThinking(true);
 
-        if (!res.ok) {
-          throw new Error("Failed to get AI response");
-        }
+        const data = await coachRequest(buildCoachPayload(content));
 
-        const data = await res.json();
+        await db.messages.update(messageId, { status: "sent" });
 
         const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
+          id: crypto.randomUUID(),
+          teacherId: teacher.id,
           type: "ai",
-          content: data.output || "No response from AI",
-          timestamp: new Date(),
-          status: "delivered",
+          content: data.output || "No response",
+          timestamp: Date.now(),
+          status: "sent",
         };
 
+        await db.messages.put(aiMessage);
         setMessages((prev) => [...prev, aiMessage]);
-      } catch (error) {
-        console.error("AI error:", error);
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: (Date.now() + 2).toString(),
-            type: "ai",
-            content:
-              "⚠️ Sorry, I couldn't process your request. Please try again.",
-            timestamp: new Date(),
-            status: "delivered",
-          },
-        ]);
+      } catch {
+        await db.messages.update(messageId, { status: "failed" });
       } finally {
         setIsAIThinking(false);
+      }
+    } else {
+      // 4️⃣ Offline → queue action
+      await db.pending_actions.put({
+        id: crypto.randomUUID(),
+        type: "SEND_MESSAGE",
+        payload: { id: messageId, content },
+        retries: 0,
+        createdAt: Date.now(),
+      });
+
+      // 🔁 Background sync (best-effort)
+      if ("serviceWorker" in navigator && "SyncManager" in window) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          const syncManager = (reg as any).sync as SyncManager | undefined;
+          if (syncManager) {
+            await syncManager.register("sync-pending-messages");
+          }
+        } catch {
+          // Safe to ignore
+        }
       }
     }
   };
@@ -107,15 +213,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     <ChatContext.Provider
       value={{
         messages,
-        addMessage,
-        isRecording,
-        setIsRecording,
-        recordingDuration,
-        setRecordingDuration,
+        sendMessage,
         isAIThinking,
-        setIsAIThinking,
-        contextVisible,
-        setContextVisible,
       }}
     >
       {children}
@@ -123,10 +222,14 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   );
 };
 
+/* =========================
+   Hook
+========================= */
+
 export const useChat = () => {
-  const context = useContext(ChatContext);
-  if (!context) {
-    throw new Error("useChat must be used within a ChatProvider");
+  const ctx = useContext(ChatContext);
+  if (!ctx) {
+    throw new Error("useChat must be used within ChatProvider");
   }
-  return context;
+  return ctx;
 };
