@@ -5,21 +5,21 @@ import { ArrowLeft, Search, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
 import { useChat } from "@/app/context/ChatContext";
-import { db, Conversation } from "@/lib/db";
 import { DeleteConversationButton } from "@/app/components/ui/DeleteConversationButton";
+import { fetchConversations, ConversationDTO } from "@/lib/api";
 
 /* =========================
    Helpers
 ========================= */
 
-const isToday = (ts: number) => {
-  const d = new Date(ts);
+const isToday = (iso: string) => {
+  const d = new Date(iso);
   const now = new Date();
   return d.toDateString() === now.toDateString();
 };
 
-const isYesterday = (ts: number) => {
-  const d = new Date(ts);
+const isYesterday = (iso: string) => {
+  const d = new Date(iso);
   const y = new Date();
   y.setDate(y.getDate() - 1);
   return d.toDateString() === y.toDateString();
@@ -30,7 +30,8 @@ export const HistoryScreen = () => {
   const { language } = useApp();
   const { loadConversation } = useChat();
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<ConversationDTO[]>([]);
+  const [loading, setLoading] = useState(true);
 
   /* =========================
      Load conversations
@@ -38,12 +39,14 @@ export const HistoryScreen = () => {
 
   useEffect(() => {
     const load = async () => {
-      const all = await db.conversations
-        .orderBy("updatedAt")
-        .reverse()
-        .toArray();
-
-      setConversations(all);
+      try {
+        const data = await fetchConversations();
+        setConversations(data);
+      } catch (e) {
+        console.error("Failed to fetch conversations", e);
+      } finally {
+        setLoading(false);
+      }
     };
 
     load();
@@ -58,28 +61,19 @@ export const HistoryScreen = () => {
     router.push("/home");
   };
 
-  const visible = conversations.filter((c) => !c.deletedAt);
-  const today = visible.filter((c) => isToday(c.updatedAt));
-  const yesterday = visible.filter((c) => isYesterday(c.updatedAt));
-  const older = visible.filter(
-    (c) => !isToday(c.updatedAt) && !isYesterday(c.updatedAt)
+  const deleteConversation = (id: string) => {
+    // UI-only delete for now
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const today = conversations.filter((c) => isToday(c.updated_at));
+  const yesterday = conversations.filter((c) =>
+    isYesterday(c.updated_at)
+  );
+  const older = conversations.filter(
+    (c) => !isToday(c.updated_at) && !isYesterday(c.updated_at)
   );
 
-  const deleteConversation = async (id: string) => {
-    await db.conversations.update(id, {
-      deletedAt: Date.now(),
-    });
-
-    // Optional: also delete messages (commented for safety)
-    //await db.messages.where("conversationId").equals(id).delete();
-
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === id ? { ...c, deletedAt: Date.now() } : c
-      )
-    );
-  };
-  
   return (
     <div className="flex flex-col h-full bg-[#F9FAFB]">
       {/* Header */}
@@ -103,6 +97,20 @@ export const HistoryScreen = () => {
 
       {/* Content */}
       <div className="flex-1 mt-16 overflow-y-auto px-4 py-4">
+        {loading && (
+          <div className="text-center text-[#6B7280] mt-20">
+            {language === "hi" ? "लोड हो रहा है..." : "Loading conversations..."}
+          </div>
+        )}
+
+        {!loading && conversations.length === 0 && (
+          <div className="text-center text-[#6B7280] mt-20">
+            {language === "hi"
+              ? "कोई बातचीत नहीं मिली"
+              : "No conversations yet"}
+          </div>
+        )}
+
         {/* Today */}
         {today.length > 0 && (
           <>
@@ -165,14 +173,6 @@ export const HistoryScreen = () => {
             </div>
           </>
         )}
-
-        {conversations.length === 0 && (
-          <div className="text-center text-[#6B7280] mt-20">
-            {language === "hi"
-              ? "कोई बातचीत नहीं मिली"
-              : "No conversations yet"}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -188,12 +188,12 @@ const ConversationCard = ({
   onDelete,
   language,
 }: {
-  conv: Conversation;
+  conv: ConversationDTO;
   onClick: (id: string) => void;
   onDelete: (id: string) => void;
   language: string;
 }) => {
-  const time = new Date(conv.updatedAt).toLocaleTimeString([], {
+  const time = new Date(conv.updated_at).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -201,8 +201,7 @@ const ConversationCard = ({
   return (
     <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-3">
-        
-        {/* Clickable content area ONLY */}
+        {/* Clickable content */}
         <div
           onClick={() => onClick(conv.id)}
           className="flex items-start gap-3 flex-1 min-w-0 cursor-pointer"
@@ -214,9 +213,9 @@ const ConversationCard = ({
               {conv.title || (language === "hi" ? "नई बातचीत" : "New Chat")}
             </h3>
 
-            {conv.lastMessagePreview && (
+            {conv.last_message_preview && (
               <p className="text-sm text-[#6B7280] mb-2 line-clamp-1">
-                {conv.lastMessagePreview}
+                {conv.last_message_preview}
               </p>
             )}
 
@@ -224,12 +223,10 @@ const ConversationCard = ({
           </div>
         </div>
 
-        {/* Delete button – isolated click zone */}
-        <div className="flex-shrink-0">
-          <DeleteConversationButton
-            onDelete={() => onDelete(conv.id)}
-          />
-        </div>
+        {/* Delete */}
+        <DeleteConversationButton
+          onDelete={() => onDelete(conv.id)}
+        />
       </div>
     </div>
   );

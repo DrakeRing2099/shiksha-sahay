@@ -93,3 +93,18 @@ export function coachRequest(payload: {
     body: JSON.stringify(payload),
   });
 }
+/* =========================
+   Conversations
+========================= */
+
+export interface ConversationDTO {
+  id: string;
+  title: string;
+  last_message_preview: string;
+  updated_at: string;
+  worked?: boolean | null;
+}
+
+export function fetchConversations(): Promise<ConversationDTO[]> {
+  return apiFetch<ConversationDTO[]>("/api/conversations");
+}

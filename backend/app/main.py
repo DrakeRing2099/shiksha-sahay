@@ -4,6 +4,7 @@ from app.api.coach import router as coach_router
 from app.api.schools import router as schools_router
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.auth import router as auth_router
+from app.api.conversations import router as conversations_router
 
 app = FastAPI()
 app.include_router(auth_router)
@@ -26,3 +27,5 @@ def health():
 
 app.include_router(schools_router)
 app.include_router(coach_router)
+app.include_router(conversations_router)
+
