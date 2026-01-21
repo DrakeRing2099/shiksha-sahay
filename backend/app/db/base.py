@@ -5,3 +5,4 @@ class Base(DeclarativeBase):
 
 from app.models.core import *   # noqa
 from app.models.auth import *   # noqa
+from app.models.conversations import *   # noqa
