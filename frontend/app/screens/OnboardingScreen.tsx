@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { fetchSchools } from "@/lib/api";
+import { AuthStep } from "@/app/components/auth/AuthStep";
 import { ChevronRight, Mic, Brain, CheckCircle } from "lucide-react";
 
 export const OnboardingScreen = () => {
@@ -10,50 +12,71 @@ export const OnboardingScreen = () => {
   const { language, setLanguage } = useApp();
 
   const [step, setStep] = useState(0);
+
   const [formData, setFormData] = useState({
     grade: "",
     subject: "",
     language: "hi",
   });
 
+  const [schools, setSchools] = useState<
+    { id: string; name: string; location: string | null }[]
+  >([]);
+
+  const [schoolId, setSchoolId] = useState("");
+  const [schoolsLoading, setSchoolsLoading] = useState(false);
+
+  /* ------------------------
+     Navigation
+  ------------------------ */
+
   const handleNext = () => {
     if (step < 2) setStep((s) => s + 1);
   };
 
-  const completeOnboarding = () => {
-    // persist onboarding completion
-    localStorage.setItem("hasCompletedOnboarding", "true");
-
-    // persist user preferences (optional but recommended)
-    localStorage.setItem("userProfile", JSON.stringify({
+  const goToAuthStep = () => {
+    // Save preferences (not completed yet)
+    localStorage.setItem(
+      "userProfile",
+      JSON.stringify({
       grade: formData.grade,
       subject: formData.subject,
       language: formData.language,
-    }));
+        schoolId,
+      })
+    );
 
     setLanguage(formData.language as "hi" | "en");
-
-    router.replace("/home");
+    setStep(3);
   };
+
+  /* ------------------------
+     Fetch schools
+  ------------------------ */
+
+  useEffect(() => {
+    if (step === 2) {
+      setSchoolsLoading(true);
+      fetchSchools()
+        .then(setSchools)
+        .catch(console.error)
+        .finally(() => setSchoolsLoading(false));
+    }
+  }, [step]);
 
   return (
     <div className="flex flex-col h-screen bg-white">
       {/* Main content */}
       <div className="flex-1 flex items-center justify-center px-8">
+        {/* Step 0 */}
         {step === 0 && (
           <div className="text-center">
-            <div className="w-48 h-48 mx-auto mb-8 flex items-center justify-center">
-              {/* SVG stays unchanged */}
-              {/* ... */}
-            </div>
-
-            <h2 className="text-2xl font-bold text-[#111827] mb-4">
+            <h2 className="text-2xl font-bold mb-4">
               {language === "hi"
                 ? "आपका व्यक्तिगत शिक्षण सहायक"
                 : "Your Personal Teaching Assistant"}
             </h2>
-
-            <p className="text-[#6B7280]">
+            <p className="text-gray-500">
               {language === "hi"
                 ? "कभी भी, कहीं भी समाधान"
                 : "Anytime, anywhere solutions"}
@@ -61,26 +84,28 @@ export const OnboardingScreen = () => {
           </div>
         )}
 
+        {/* Step 1 */}
         {step === 1 && (
           <div className="text-center space-y-12">
             <Feature
-              icon={<Mic className="w-8 h-8 text-[#10B981]" />}
+              icon={<Mic className="w-8 h-8 text-green-500" />}
               titleHi="अपनी समस्या बोलें"
               titleEn="Speak your problem"
             />
             <Feature
-              icon={<Brain className="w-8 h-8 text-[#2563EB]" />}
+              icon={<Brain className="w-8 h-8 text-blue-600" />}
               titleHi="तुरंत समाधान पाएं"
               titleEn="Get instant solutions"
             />
             <Feature
-              icon={<CheckCircle className="w-8 h-8 text-[#F59E0B]" />}
+              icon={<CheckCircle className="w-8 h-8 text-yellow-500" />}
               titleHi="कक्षा में लागू करें"
               titleEn="Apply in classroom"
             />
           </div>
         )}
 
+        {/* Step 2 */}
         {step === 2 && (
           <div className="w-full max-w-sm space-y-4">
             <select
@@ -112,12 +137,29 @@ export const OnboardingScreen = () => {
               <option value="English">English</option>
             </select>
 
+            <select
+              value={schoolId}
+              onChange={(e) => setSchoolId(e.target.value)}
+              className="w-full h-12 border rounded-lg px-4"
+              disabled={schoolsLoading}
+            >
+              <option value="">
+                {schoolsLoading ? "Loading schools..." : "Select school"}
+              </option>
+              {schools.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                  {s.location ? ` — ${s.location}` : ""}
+                </option>
+              ))}
+            </select>
+
             <div className="flex gap-2">
               <button
                 onClick={() =>
                   setFormData({ ...formData, language: "hi" })
                 }
-                className={`flex-1 h-12 rounded-lg border ${
+                className={`flex-1 h-12 border rounded-lg ${
                   formData.language === "hi"
                     ? "bg-blue-100 border-blue-600"
                     : ""
@@ -129,7 +171,7 @@ export const OnboardingScreen = () => {
                 onClick={() =>
                   setFormData({ ...formData, language: "en" })
                 }
-                className={`flex-1 h-12 rounded-lg border ${
+                className={`flex-1 h-12 border rounded-lg ${
                   formData.language === "en"
                     ? "bg-blue-100 border-blue-600"
                     : ""
@@ -140,29 +182,34 @@ export const OnboardingScreen = () => {
             </div>
           </div>
         )}
+
+        {/* Step 3: Auth */}
+        {step === 3 && (
+          <AuthStep
+            schoolId={schoolId}
+            onAuthSuccess={() => {
+              localStorage.setItem("hasCompletedOnboarding", "true");
+              router.replace("/home");
+            }}
+          />
+        )}
       </div>
 
-      {/* Footer buttons */}
+      {/* Footer */}
       <div className="p-4">
-        {step < 2 ? (
-          <>
+        {step < 2 && (
             <button
               onClick={handleNext}
               className="w-full h-12 bg-blue-600 text-white rounded-lg flex items-center justify-center gap-2"
             >
               Next <ChevronRight className="w-5 h-5" />
             </button>
-            <button
-              onClick={completeOnboarding}
-              className="w-full mt-2 text-gray-500"
-            >
-              Skip
-            </button>
-          </>
-        ) : (
+        )}
+
+        {step === 2 && (
           <button
-            onClick={completeOnboarding}
-            disabled={!formData.grade || !formData.subject}
+            onClick={goToAuthStep}
+            disabled={!formData.grade || !formData.subject || !schoolId}
             className="w-full h-12 bg-blue-600 text-white rounded-lg disabled:opacity-50"
           >
             Start
@@ -173,7 +220,7 @@ export const OnboardingScreen = () => {
   );
 };
 
-/* small helper */
+/* Helper */
 const Feature = ({
   icon,
   titleHi,
