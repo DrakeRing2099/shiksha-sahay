@@ -1,11 +1,12 @@
-// frontend/lib/api.ts
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+import { apiFetch } from "@/lib/apiClient";
 
 /* =========================
    Types
 ========================= */
+export interface CoachResponse {
+  output: string;
+  context_used?: any;
+}
 
 export interface School {
   id: string;
@@ -14,110 +15,81 @@ export interface School {
 }
 
 /* =========================
-   Schools
+   Schools (public)
 ========================= */
 
-export async function fetchSchools(): Promise<School[]> {
-  const res = await fetch(`${API_BASE_URL}/schools`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error("Failed to fetch schools");
-  }
-
-  return res.json();
+export function fetchSchools(): Promise<School[]> {
+  return apiFetch<School[]>("/schools", { auth: false });
 }
 
 /* =========================
    Auth – Signup
 ========================= */
 
-export async function signupRequestOtp(payload: {
+export function signupRequestOtp(payload: {
   name: string;
   phone: string;
   email: string;
-  school_id: string; // UUID
+  school_id: string;
 }) {
-  const res = await fetch(`${API_BASE_URL}/auth/signup/request-otp`, {
+  return apiFetch("/auth/signup/request-otp", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    auth: false,
     body: JSON.stringify(payload),
   });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || "Failed to request OTP");
-  }
-
-  /**
-   * In dev you may receive:
-   * { ok: true, dev_otp, teacher_id }
-   */
-  return res.json();
 }
 
-export async function signupVerifyOtp(payload: {
+export function signupVerifyOtp(payload: {
   phone: string;
   otp: string;
 }) {
-  const res = await fetch(`${API_BASE_URL}/auth/signup/verify-otp`, {
+  return apiFetch("/auth/signup/verify-otp", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    auth: false,
     body: JSON.stringify(payload),
   });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || "OTP verification failed");
-  }
-
-  /**
-   * { access_token, refresh_token }
-   */
-  return res.json();
 }
 
 /* =========================
-   Auth – Login (optional reuse)
+   Auth – Login
 ========================= */
 
-export async function requestOtp(payload: {
+export function requestOtp(payload: {
   channel: "phone" | "email";
   destination: string;
 }) {
-  const res = await fetch(`${API_BASE_URL}/auth/request-otp`, {
+  return apiFetch("/auth/request-otp", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    auth: false,
     body: JSON.stringify(payload),
   });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || "Failed to request OTP");
-  }
-
-  return res.json();
 }
 
-export async function verifyOtp(payload: {
+export function verifyOtp(payload: {
   channel: "phone" | "email";
   destination: string;
   otp: string;
 }) {
-  const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+  return apiFetch("/auth/verify-otp", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    auth: false,
     body: JSON.stringify(payload),
   });
+}
 
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || "Invalid OTP");
-  }
+/* =========================
+   Coach (protected)
+========================= */
 
-  return res.json(); // { access_token, refresh_token }
+export function coachRequest(payload: {
+  prompt: string;
+  grade?: number;
+  subject?: string;
+  language?: string;
+  time_left_minutes?: number;
+}) {
+  return apiFetch<CoachResponse>("/api/coach", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }

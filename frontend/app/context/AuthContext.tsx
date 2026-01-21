@@ -8,9 +8,7 @@ import React, {
   ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+import { db } from "@/lib/db";
 
 /* =========================
    Types
@@ -18,9 +16,6 @@ const API_BASE_URL =
 
 export interface Teacher {
   id: string;
-  name?: string;
-  phone?: string;
-  email?: string;
   onboarding_status?: number;
 }
 
@@ -28,14 +23,12 @@ interface AuthContextType {
   isReady: boolean;
   isAuthenticated: boolean;
   teacher: Teacher | null;
-
   accessToken: string | null;
 
   requestOtp: (params: {
     channel: "phone" | "email";
     destination: string;
-  }) => Promise<{ ok: boolean; dev_otp?: string }>;
-
+  }) => Promise<any>;
 
   verifyOtp: (params: {
     channel: "phone" | "email";
@@ -44,11 +37,11 @@ interface AuthContextType {
   }) => Promise<void>;
 
   signupRequestOtp: (params: {
-  name: string;
-  phone: string;
-  email: string;
-  school_id: string;
-}) => Promise<{ ok: boolean; dev_otp?: string; teacher_id?: string }>;
+    name: string;
+    phone: string;
+    email: string;
+    school_id: string;
+  }) => Promise<any>;
 
   signupVerifyOtp: (params: {
     phone: string;
@@ -63,6 +56,9 @@ interface AuthContextType {
 ========================= */
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 /* =========================
    Helpers
@@ -90,39 +86,55 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
   /* =========================
-     Bootstrap auth
+     Bootstrap from IndexedDB
   ========================= */
 
   useEffect(() => {
     const bootstrap = async () => {
-      const refreshToken = localStorage.getItem("refresh_token");
+      const session = await db.auth.get("session");
 
-      if (!refreshToken) {
+      if (!session || !session.refreshToken) {
         setIsReady(true);
         return;
       }
 
+      // Offline? trust existing access token
+      if (!navigator.onLine && session.accessToken) {
+        setAccessToken(session.accessToken);
+        setIsAuthenticated(true);
+        if (session.teacherId) {
+          setTeacher({ id: session.teacherId });
+        }
+        setIsReady(true);
+        return;
+      }
+
+      // Online → refresh access token
       try {
         const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh_token: refreshToken }),
+          body: JSON.stringify({ refresh_token: session.refreshToken }),
         });
 
         if (!res.ok) throw new Error("Refresh failed");
 
         const data = await res.json();
+        const teacherId = decodeJwtSub(data.access_token);
 
-        localStorage.setItem("access_token", data.access_token);
+        await db.auth.put({
+          id: "session",
+          accessToken: data.access_token,
+          refreshToken: session.refreshToken,
+          teacherId,
+          expiresAt: Date.now() + 10 * 60 * 1000,
+        });
+
         setAccessToken(data.access_token);
         setIsAuthenticated(true);
-
-        const teacherId = decodeJwtSub(data.access_token);
         if (teacherId) setTeacher({ id: teacherId });
-
       } catch {
-        localStorage.removeItem("refresh_token");
-        localStorage.removeItem("access_token");
+        await db.auth.clear();
       } finally {
         setIsReady(true);
       }
@@ -131,38 +143,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     bootstrap();
   }, []);
 
-/* =========================
+  /* =========================
      OTP – LOGIN
-========================= */
+  ========================= */
 
-  const requestOtp = async ({
-    channel,
-    destination,
-  }: {
+  const requestOtp = async (params: {
     channel: "phone" | "email";
     destination: string;
   }) => {
     const res = await fetch(`${API_BASE_URL}/auth/request-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channel, destination }),
+      body: JSON.stringify(params),
     });
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || "Teacher not found");
-    }
-
-    return res.json(); // 🔑 THIS IS THE KEY
+    if (!res.ok) throw new Error("OTP request failed");
+    return res.json();
   };
 
-
-
-  const verifyOtp = async ({
-    channel,
-    destination,
-    otp,
-  }: {
+  const verifyOtp = async (params: {
     channel: "phone" | "email";
     destination: string;
     otp: string;
@@ -170,22 +169,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channel, destination, otp }),
+      body: JSON.stringify(params),
     });
 
-    if (!res.ok) {
-      throw new Error("Invalid OTP");
-    }
+    if (!res.ok) throw new Error("OTP verification failed");
 
     const data = await res.json();
+    const teacherId = decodeJwtSub(data.access_token);
 
-    localStorage.setItem("refresh_token", data.refresh_token);
-    localStorage.setItem("access_token", data.access_token);
+    await db.auth.put({
+      id: "session",
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      teacherId,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
 
     setAccessToken(data.access_token);
     setIsAuthenticated(true);
-
-    const teacherId = decodeJwtSub(data.access_token);
     if (teacherId) setTeacher({ id: teacherId });
   };
 
@@ -193,57 +194,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
      OTP – SIGNUP
   ========================= */
 
-const signupRequestOtp = async (params: {
-  name: string;
-  phone: string;
-  email: string;
-  school_id: string;
-}) => {
-  const res = await fetch(`${API_BASE_URL}/auth/signup/request-otp`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
+  const signupRequestOtp = async (params: {
+    name: string;
+    phone: string;
+    email: string;
+    school_id: string;
+  }) => {
+    const res = await fetch(`${API_BASE_URL}/auth/signup/request-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
 
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.detail || "Signup OTP request failed");
-  }
+    if (!res.ok) throw new Error("Signup OTP request failed");
+    return res.json();
+  };
 
-  return res.json(); // ✅ IMPORTANT
-};
-
-
-
-  const signupVerifyOtp = async ({
-    phone,
-    otp,
-  }: {
+  const signupVerifyOtp = async (params: {
     phone: string;
     otp: string;
   }) => {
     const res = await fetch(`${API_BASE_URL}/auth/signup/verify-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone, otp }),
+      body: JSON.stringify(params),
     });
 
-    if (!res.ok) {
-      throw new Error("Signup OTP verification failed");
-    }
+    if (!res.ok) throw new Error("Signup OTP verification failed");
 
     const data = await res.json();
+    const teacherId = decodeJwtSub(data.access_token);
 
-    localStorage.setItem("refresh_token", data.refresh_token);
-    localStorage.setItem("access_token", data.access_token);
+    await db.auth.put({
+      id: "session",
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      teacherId,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
 
     setAccessToken(data.access_token);
     setIsAuthenticated(true);
-
-    const teacherId = decodeJwtSub(data.access_token);
-    if (teacherId) {
-      setTeacher({ id: teacherId, onboarding_status: 1 });
-    }
+    if (teacherId) setTeacher({ id: teacherId, onboarding_status: 1 });
   };
 
   /* =========================
@@ -251,20 +243,17 @@ const signupRequestOtp = async (params: {
   ========================= */
 
   const logout = async () => {
-    const refreshToken = localStorage.getItem("refresh_token");
+    const session = await db.auth.get("session");
 
-    if (refreshToken) {
+    if (session?.refreshToken && navigator.onLine) {
       await fetch(`${API_BASE_URL}/auth/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: refreshToken }),
+        body: JSON.stringify({ refresh_token: session.refreshToken }),
       });
     }
 
-    localStorage.removeItem("refresh_token");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("hasCompletedOnboarding");
-    localStorage.removeItem("userProfile");
+    await db.auth.clear();
 
     setAccessToken(null);
     setTeacher(null);
