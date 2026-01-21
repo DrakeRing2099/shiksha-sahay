@@ -10,10 +10,12 @@ import {
   HelpCircle,
   LogOut,
   X,
+  PlusCircle,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
 import { useAuth } from "@/app/context/AuthContext";
+import { useChat } from "@/app/context/ChatContext";
 
 export const NavigationDrawer = () => {
   const router = useRouter();
@@ -27,15 +29,30 @@ export const NavigationDrawer = () => {
   } = useApp();
 
   const { logout } = useAuth();
+  const { startNewChat } = useChat();
 
   const navigate = (href: string) => {
     router.push(href);
     setIsDrawerOpen(false);
   };
 
+  const handleNewChat = async () => {
+    await startNewChat();
+    router.push("/home");
+    setIsDrawerOpen(false);
+  };
+
   if (!isDrawerOpen) return null;
 
   const menuItems = [
+    {
+      id: "new-chat",
+      icon: PlusCircle,
+      labelHi: "नई बातचीत",
+      labelEn: "New Chat",
+      onClick: handleNewChat,
+      active: false,
+    },
     {
       id: "home",
       icon: Home,
@@ -113,12 +130,17 @@ export const NavigationDrawer = () => {
         <nav className="py-4">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive =
+              "href" in item ? pathname === item.href : false;
 
             return (
               <button
                 key={item.id}
-                onClick={() => navigate(item.href)}
+                onClick={
+                  "onClick" in item
+                    ? item.onClick
+                    : () => navigate(item.href!)
+                }
                 className={`w-full h-12 px-4 flex items-center gap-4 transition-colors ${
                   isActive
                     ? "bg-[#DBEAFE] text-[#2563EB]"
@@ -136,7 +158,6 @@ export const NavigationDrawer = () => {
 
         {/* Bottom Menu */}
         <nav className="py-4">
-          {/* Settings */}
           <button
             onClick={() => navigate("/settings")}
             className="w-full h-12 px-4 flex items-center gap-4 text-[#111827] hover:bg-[#F9FAFB]"
@@ -145,16 +166,14 @@ export const NavigationDrawer = () => {
             {language === "hi" ? "सेटिंग्स" : "Settings"}
           </button>
 
-          {/* Help */}
-              <button
+          <button
             onClick={() => navigate("/help")}
             className="w-full h-12 px-4 flex items-center gap-4 text-[#111827] hover:bg-[#F9FAFB]"
-              >
+          >
             <HelpCircle className="w-6 h-6" />
             {language === "hi" ? "मदद" : "Help"}
-              </button>
+          </button>
 
-          {/* Logout */}
           <button
             onClick={async () => {
               setIsDrawerOpen(false);

@@ -19,6 +19,7 @@ import { useApp } from "@/app/context/AppContext";
 export interface Message {
   id: string;
   teacherId: string;
+  conversationId: string;
   type: "user" | "ai";
   content: string;
   timestamp: number;
@@ -26,9 +27,12 @@ export interface Message {
 }
 
 interface ChatContextType {
+  conversationId: string | null;
   messages: Message[];
-  sendMessage: (content: string) => Promise<void>;
   isAIThinking: boolean;
+  startNewChat: () => Promise<void>;
+  loadConversation: (id: string) => Promise<void>;
+  sendMessage: (content: string) => Promise<void>;
 }
 
 /* =========================
@@ -45,6 +49,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { teacher } = useAuth();
   const { userProfile, language } = useApp();
 
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isAIThinking, setIsAIThinking] = useState(false);
 
@@ -61,23 +66,36 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   /* =========================
-     Load messages from IndexedDB
+     Conversation helpers
   ========================= */
 
-  useEffect(() => {
+  const startNewChat = async () => {
     if (!teacher?.id) return;
 
-    const loadMessages = async () => {
-      const localMessages = await db.messages
-        .where("teacherId")
-        .equals(teacher.id)
-        .sortBy("timestamp");
+    const newConversationId = crypto.randomUUID();
 
-      setMessages(localMessages);
-    };
+    await db.conversations.put({
+      id: newConversationId,
+      teacherId: teacher.id,
+      title: "New Conversation",
+      updatedAt: Date.now(),
+    });
 
-    loadMessages();
-  }, [teacher?.id]);
+    setConversationId(newConversationId);
+    setMessages([]);
+  };
+
+  const loadConversation = async (id: string) => {
+    if (!teacher?.id) return;
+
+    const msgs = await db.messages
+      .where("conversationId")
+      .equals(id)
+      .sortBy("timestamp");
+
+    setConversationId(id);
+    setMessages(msgs);
+  };
 
   /* =========================
      Online sync trigger
@@ -96,15 +114,16 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       for (const action of pending) {
         try {
-          const data = await coachRequest(
-            buildCoachPayload(action.payload.content)
-          );
+          const { content, messageId, conversationId } = action.payload;
 
-          await db.messages.update(action.payload.id, { status: "sent" });
+          const data = await coachRequest(buildCoachPayload(content));
+
+          await db.messages.update(messageId, { status: "sent" });
 
           const aiMessage: Message = {
             id: crypto.randomUUID(),
             teacherId: teacher.id,
+            conversationId,
             type: "ai",
             content: data.output || "No response",
             timestamp: Date.now(),
@@ -120,33 +139,50 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
 
-      const updated = await db.messages
-        .where("teacherId")
-        .equals(teacher.id)
-        .sortBy("timestamp");
+      if (conversationId) {
+        const updated = await db.messages
+          .where("conversationId")
+          .equals(conversationId)
+          .sortBy("timestamp");
 
-      setMessages(updated);
+        setMessages(updated);
+      }
     };
 
-    // 🔑 CRITICAL: run once + on reconnect
     sync();
     window.addEventListener("online", sync);
-
     return () => window.removeEventListener("online", sync);
-  }, [teacher?.id, userProfile, language]);
+  }, [teacher?.id, conversationId, userProfile, language]);
 
   /* =========================
-     Public API
+     Send message
   ========================= */
 
   const sendMessage = async (content: string) => {
     if (!teacher?.id) return;
+
+    let activeConversationId = conversationId;
+
+    // 🔹 Auto-create conversation on first message
+    if (!activeConversationId) {
+      activeConversationId = crypto.randomUUID();
+
+      await db.conversations.put({
+        id: activeConversationId,
+        teacherId: teacher.id,
+        title: content.slice(0, 40),
+        updatedAt: Date.now(),
+      });
+
+      setConversationId(activeConversationId);
+    }
 
     const messageId = crypto.randomUUID();
 
     const userMessage: Message = {
       id: messageId,
       teacherId: teacher.id,
+      conversationId: activeConversationId,
       type: "user",
       content,
       timestamp: Date.now(),
@@ -155,11 +191,9 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // 1️⃣ Save locally
     await db.messages.put(userMessage);
-
-    // 2️⃣ Optimistic UI
     setMessages((prev) => [...prev, userMessage]);
 
-    // 3️⃣ Online → send now
+    // 2️⃣ Online
     if (navigator.onLine) {
       try {
         setIsAIThinking(true);
@@ -171,6 +205,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const aiMessage: Message = {
           id: crypto.randomUUID(),
           teacherId: teacher.id,
+          conversationId: activeConversationId,
           type: "ai",
           content: data.output || "No response",
           timestamp: Date.now(),
@@ -185,36 +220,30 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsAIThinking(false);
       }
     } else {
-      // 4️⃣ Offline → queue action
+      // 3️⃣ Offline → queue
       await db.pending_actions.put({
         id: crypto.randomUUID(),
         type: "SEND_MESSAGE",
-        payload: { id: messageId, content },
+        payload: {
+          messageId,
+          content,
+          conversationId: activeConversationId,
+        },
         retries: 0,
         createdAt: Date.now(),
       });
-
-      // 🔁 Background sync (best-effort)
-      if ("serviceWorker" in navigator && "SyncManager" in window) {
-        try {
-          const reg = await navigator.serviceWorker.ready;
-          const syncManager = (reg as any).sync as SyncManager | undefined;
-          if (syncManager) {
-            await syncManager.register("sync-pending-messages");
-          }
-        } catch {
-          // Safe to ignore
-        }
-      }
     }
   };
 
   return (
     <ChatContext.Provider
       value={{
+        conversationId,
         messages,
-        sendMessage,
         isAIThinking,
+        startNewChat,
+        loadConversation,
+        sendMessage,
       }}
     >
       {children}
