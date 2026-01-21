@@ -5,6 +5,7 @@ from sqlalchemy import (
     DateTime,
     Boolean,
     ForeignKey,
+    Integer,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -66,11 +67,17 @@ class TeachingInsight(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    # Generalized context (no teacher identifiers)
+    # 🔑 Human-readable card title
+    title = Column(Text, nullable=False)
+
+    # Generalized context (NO teacher identifiers)
     generalized_context = Column(JSONB, nullable=False)
 
     reframed_problem = Column(Text, nullable=False)
     reframed_solution = Column(Text, nullable=False)
+
+    # Engagement metrics (no ranking yet)
+    likes_count = Column(Integer, nullable=False, server_default="0")
 
     created_at = Column(
         DateTime(timezone=True),
