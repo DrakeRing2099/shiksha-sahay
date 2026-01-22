@@ -129,3 +129,29 @@ export function createConversation(payload: { title: string }) {
     body: JSON.stringify(payload),
   });
 }
+
+export interface TeachingInsightDTO {
+  id: string;
+  title: string;
+  problem: string;
+  solution: string;
+  context?: any;
+  likes_count?: number;
+  created_at: string;
+}
+
+export function fetchTeachingInsights(limit = 10) {
+  return apiFetch<TeachingInsightDTO[]>(
+    `/api/teaching-insights?limit=${limit}`
+  );
+}
+
+export function reactToTeachingInsight(
+  insightId: string,
+  liked: boolean
+) {
+  return apiFetch(`/api/teaching-insights/${insightId}/react`, {
+    method: "POST",
+    body: JSON.stringify({ liked }),
+  });
+}

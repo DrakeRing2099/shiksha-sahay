@@ -34,6 +34,14 @@ export interface Conversation {
   // ✅ Local-only UI state
   feedbackSubmitted?: boolean;
 }
+export interface SavedInsight {
+  id: string;          // teaching_insight_id
+  title: string;
+  problem: string;
+  solution: string;
+  savedAt: number;     // local timestamp
+}
+
 
 
 /* 🆕 Message now belongs to a conversation */
@@ -71,6 +79,7 @@ class ShikshaSahayDB extends Dexie {
   messages!: Table<ChatMessage>;
   pending_actions!: Table<PendingAction>;
   settings!: Table<AppSetting>;
+  saved_insights!: Table<SavedInsight>;
 
   constructor() {
     super("shikshaSahayDB");
@@ -126,7 +135,17 @@ class ShikshaSahayDB extends Dexie {
         });
       }
     });
+    this.version(3).stores({
+      auth: "id",
+      profile: "teacherId",
+      conversations: "id, teacherId, updatedAt",
+      messages: "id, teacherId, conversationId, timestamp",
+      pending_actions: "id, type, createdAt",
+      saved_insights: "id, savedAt",
+      settings: "key",
+    });
   }
 }
 
 export const db = new ShikshaSahayDB();
+

@@ -34,6 +34,9 @@ interface ChatContextType {
   showFeedback: boolean;
   setShowFeedback: (v: boolean) => void;
 
+  feedbackSubmitted: boolean;
+  setFeedbackSubmitted: (v: boolean) => void;
+
   startNewChat: () => Promise<void>;
   loadConversation: (id: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
@@ -53,6 +56,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isAIThinking, setIsAIThinking] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   /* =========================
      Helpers
@@ -86,6 +90,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     setConversationId(null);
     setMessages([]);
     setShowFeedback(false);
+    setFeedbackSubmitted(false);
   };
 
   const loadConversation = async (id: string) => {
@@ -99,7 +104,9 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     setConversationId(id);
     setMessages(msgs);
     setShowFeedback(false);
+    setFeedbackSubmitted(false);
   };
+
 
   /* =========================
      Send message
@@ -198,8 +205,13 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
         conversationId,
         messages,
         isAIThinking,
+
         showFeedback,
         setShowFeedback,
+
+        feedbackSubmitted,
+        setFeedbackSubmitted,
+
         startNewChat,
         loadConversation,
         sendMessage,
