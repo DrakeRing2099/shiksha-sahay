@@ -93,3 +93,65 @@ export function coachRequest(payload: {
     body: JSON.stringify(payload),
   });
 }
+/* =========================
+   Conversations
+========================= */
+
+export interface ConversationDTO {
+  id: string;
+  title: string;
+  last_message_preview: string;
+  updated_at: string;
+  worked?: boolean | null;
+}
+
+export function fetchConversations(): Promise<ConversationDTO[]> {
+  return apiFetch<ConversationDTO[]>("/api/conversations");
+}
+
+export function deleteConversation(id: string) {
+  return apiFetch(`/api/conversations/${id}`, {
+    method: "DELETE",
+  });
+}
+export function submitConversationFeedback(
+  conversationId: string,
+  worked: boolean
+) {
+  return apiFetch(`/api/conversations/${conversationId}/feedback`, {
+    method: "POST",
+    body: JSON.stringify({ worked }),
+  });
+}
+export function createConversation(payload: { title: string }) {
+  return apiFetch<{ id: string }>("/api/conversations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface TeachingInsightDTO {
+  id: string;
+  title: string;
+  problem: string;
+  solution: string;
+  context?: any;
+  likes_count?: number;
+  created_at: string;
+}
+
+export function fetchTeachingInsights(limit = 10) {
+  return apiFetch<TeachingInsightDTO[]>(
+    `/api/teaching-insights?limit=${limit}`
+  );
+}
+
+export function reactToTeachingInsight(
+  insightId: string,
+  liked: boolean
+) {
+  return apiFetch(`/api/teaching-insights/${insightId}/react`, {
+    method: "POST",
+    body: JSON.stringify({ liked }),
+  });
+}

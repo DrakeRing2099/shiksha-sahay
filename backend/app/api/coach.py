@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-
+from app.models.conversations import Conversation
+import uuid
 from app.core.llm import get_llm, LLMError
 from app.core.context_resolver import resolve_context
 from app.core.prompt_builder import build_prompt
@@ -40,10 +41,26 @@ def coach(
 
         llm = get_llm()
         output = llm.generate(final_prompt)
+        # 🔹 Auto-generate title from raw query
+        title = req.prompt.strip()
+        if len(title) > 60:
+            title = title[:57] + "..."
 
+        conversation = Conversation(
+            id=uuid.uuid4(),
+            teacher_id=teacher_id,
+            title=title,
+            raw_query=req.prompt,
+            resolved_context=ctx.model_dump(),
+            ai_response=output,
+        )
+
+        db.add(conversation)
+        db.commit()
         return {
-            "context_used": ctx.model_dump(),
-            "output": output
+            "conversation_id": str(conversation.id),
+            "title": conversation.title,
+            "output": output,
         }
 
     except LLMError as e:

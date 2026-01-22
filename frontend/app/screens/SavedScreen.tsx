@@ -3,72 +3,47 @@
 import { ArrowLeft, ChevronDown, Bookmark, Eye, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
+import { useEffect, useState } from "react";
+import { db, SavedInsight } from "@/lib/db";
 
 export const SavedScreen = () => {
   const router = useRouter();
   const { language } = useApp();
 
-  const savedItems = [
-    {
-      id: 1,
-      title:
-        language === "hi"
-          ? "कक्षा प्रबंधन रणनीति"
-          : "Classroom management strategy",
-      content:
-        language === "hi"
-          ? "समूह गतिविधि के दौरान..."
-          : "During group activities...",
-      tags: [
-        language === "hi" ? "कक्षा 4" : "Class 4",
-        language === "hi" ? "गणित" : "Math",
-      ],
-      date: language === "hi" ? "2 दिन पहले" : "2 days ago",
-    },
-    {
-      id: 2,
-      title:
-        language === "hi"
-          ? "शून्य के साथ घटाव"
-          : "Subtraction with zero",
-      content:
-        language === "hi"
-          ? "बेस-10 ब्लॉक का उपयोग..."
-          : "Use base-10 blocks...",
-      tags: [
-        language === "hi" ? "कक्षा 4" : "Class 4",
-        language === "hi" ? "गणित" : "Math",
-      ],
-      date: language === "hi" ? "5 दिन पहले" : "5 days ago",
-    },
-    {
-      id: 3,
-      title:
-        language === "hi"
-          ? "प्रश्न पूछने की तकनीक"
-          : "Question asking technique",
-      content:
-        language === "hi"
-          ? "खुले प्रश्नों का उपयोग..."
-          : "Use open-ended questions...",
-      tags: [language === "hi" ? "सभी विषय" : "All subjects"],
-      date: language === "hi" ? "1 सप्ताह पहले" : "1 week ago",
-    },
-  ];
+  const [savedItems, setSavedItems] = useState<SavedInsight[]>([]);
 
-  const categories = [
-    language === "hi" ? "सभी" : "All",
-    language === "hi" ? "रणनीतियाँ" : "Strategies",
-    language === "hi" ? "उदाहरण" : "Examples",
-    language === "hi" ? "टिप्स" : "Tips",
-  ];
+  /* =========================
+     Load saved insights
+  ========================= */
+
+  const loadSaved = async () => {
+    const items = await db.saved_insights
+      .orderBy("savedAt")
+      .reverse()
+      .toArray();
+
+    setSavedItems(items);
+  };
+
+  useEffect(() => {
+    loadSaved();
+  }, []);
+
+  /* =========================
+     Remove saved insight
+  ========================= */
+
+  const removeSaved = async (id: string) => {
+    await db.saved_insights.delete(id);
+    setSavedItems((prev) => prev.filter((i) => i.id !== id));
+  };
 
   return (
     <div className="flex flex-col h-full bg-[#F9FAFB]">
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-[#E5E7EB] flex items-center justify-between px-4 z-50">
         <button
-          onClick={() => router.back()} // ✅ FIXED
+          onClick={() => router.back()}
           className="p-2 hover:bg-[#F9FAFB] rounded-lg transition-colors"
           aria-label="Go back"
         >
@@ -87,26 +62,16 @@ export const SavedScreen = () => {
         </button>
       </div>
 
-      {/* Category tabs */}
-      <div className="fixed top-16 left-0 right-0 bg-white border-b border-[#E5E7EB] px-4 py-3 z-40">
-        <div className="flex gap-2 overflow-x-auto">
-          {categories.map((category, index) => (
-            <button
-              key={category}
-              className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
-                index === 0
-                  ? "bg-[#2563EB] text-white"
-                  : "bg-white border border-[#E5E7EB] text-[#111827] hover:bg-[#F9FAFB]"
-              }`}
-            >
-              {category}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Content */}
-      <div className="flex-1 mt-[116px] overflow-y-auto px-4 py-4">
+      <div className="flex-1 mt-16 overflow-y-auto px-4 py-4">
+        {savedItems.length === 0 && (
+          <div className="text-center text-[#6B7280] mt-20">
+            {language === "hi"
+              ? "कोई सहेजा गया संसाधन नहीं"
+              : "No saved resources"}
+          </div>
+        )}
+
         <div className="space-y-3">
           {savedItems.map((item) => (
             <div
@@ -121,32 +86,35 @@ export const SavedScreen = () => {
                     {item.title}
                   </h3>
 
-                  <p className="text-sm text-[#6B7280] mb-3">
-                    {item.content}
+                  <p className="text-sm text-[#6B7280] mb-3 line-clamp-3">
+                    {item.problem}
                   </p>
 
-                  <div className="flex items-center gap-2 mb-3">
-                    {item.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-1 bg-[#DBEAFE] text-[#2563EB] text-xs rounded-md"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-
-                  <p className="text-xs text-[#9CA3AF] mb-3">{item.date}</p>
+                  <p className="text-xs text-[#9CA3AF] mb-3">
+                    {language === "hi"
+                      ? "सहेजा गया"
+                      : "Saved"}{" "}
+                    ·{" "}
+                    {new Date(item.savedAt).toLocaleDateString()}
+                  </p>
 
                   <div className="flex gap-2">
-                    <button className="flex-1 h-10 border border-[#2563EB] text-[#2563EB] rounded-lg font-medium hover:bg-[#DBEAFE] transition-colors flex items-center justify-center gap-2">
+                    <button
+                      onClick={() =>
+                        console.log("VIEW INSIGHT", item.id)
+                      }
+                      className="flex-1 h-10 border border-[#2563EB] text-[#2563EB] rounded-lg font-medium hover:bg-[#DBEAFE] transition-colors flex items-center justify-center gap-2"
+                    >
                       <Eye className="w-4 h-4" />
                       <span className="text-sm">
                         {language === "hi" ? "देखें" : "View"}
                       </span>
                     </button>
 
-                    <button className="h-10 px-4 border border-[#EF4444] text-[#EF4444] rounded-lg font-medium hover:bg-[#FEE2E2] transition-colors flex items-center justify-center gap-2">
+                    <button
+                      onClick={() => removeSaved(item.id)}
+                      className="h-10 px-4 border border-[#EF4444] text-[#EF4444] rounded-lg font-medium hover:bg-[#FEE2E2] transition-colors flex items-center justify-center gap-2"
+                    >
                       <X className="w-4 h-4" />
                       <span className="text-sm">
                         {language === "hi" ? "हटाएं" : "Remove"}

@@ -17,7 +17,7 @@ export default function Providers({
       <ChatProvider>
         <NavigationDrawer />
         <OfflineIndicator />
-        <main className="size-full">{children}</main>
+        <main className="relative z-0 size-full pointer-events-auto">{children}</main>
       </ChatProvider>
     </AppProvider>
     </AuthProvider>

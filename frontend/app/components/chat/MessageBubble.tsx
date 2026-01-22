@@ -103,44 +103,7 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
               return <br key={i} />;
             })}
           </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-3 mt-4 pt-3 border-t border-[#E5E7EB]">
-            <button
-              onClick={() => setLiked(true)}
-              className={`p-2 rounded-lg transition-colors ${
-                liked === true
-                  ? "bg-[#DBEAFE] text-[#2563EB]"
-                  : "hover:bg-[#F3F4F6] text-[#6B7280]"
-              }`}
-            >
-              <ThumbsUp className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={() => setLiked(false)}
-              className={`p-2 rounded-lg transition-colors ${
-                liked === false
-                  ? "bg-[#FEE2E2] text-[#EF4444]"
-                  : "hover:bg-[#F3F4F6] text-[#6B7280]"
-              }`}
-            >
-              <ThumbsDown className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={() => setSaved(!saved)}
-              className={`p-2 rounded-lg transition-colors ${
-                saved
-                  ? "bg-[#FEF3C7] text-[#F59E0B]"
-                  : "hover:bg-[#F3F4F6] text-[#6B7280]"
-              }`}
-            >
-              <Bookmark className={`w-4 h-4 ${saved ? "fill-current" : ""}`} />
-            </button>
-          </div>
         </div>
-
         <div className="px-2 mt-1">
           <span className="text-xs text-[#9CA3AF]">
             {formatTime(message.timestamp)}
