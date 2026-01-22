@@ -30,7 +30,11 @@ export interface Conversation {
   lastMessagePreview?: string;
   updatedAt: number;
   deletedAt?: number;
+
+  // ✅ Local-only UI state
+  feedbackSubmitted?: boolean;
 }
+
 
 /* 🆕 Message now belongs to a conversation */
 export interface ChatMessage {

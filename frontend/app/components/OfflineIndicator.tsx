@@ -39,7 +39,7 @@ export const OfflineIndicator = () => {
 
   return (
     <div
-      className={`fixed top-20 left-4 right-4 z-50 p-4 rounded-lg shadow-lg border-2 transition-all duration-300 ${
+      className={`fixed top-20 left-4 right-4 z-50 p-4 rounded-lg shadow-lg border-2 transition-all duration-300 pointer-events-none ${
         isOnline
           ? "bg-[#D1FAE5] border-[#10B981]"
           : "bg-[#FEF3C7] border-[#F59E0B]"

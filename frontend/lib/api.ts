@@ -108,3 +108,24 @@ export interface ConversationDTO {
 export function fetchConversations(): Promise<ConversationDTO[]> {
   return apiFetch<ConversationDTO[]>("/api/conversations");
 }
+
+export function deleteConversation(id: string) {
+  return apiFetch(`/api/conversations/${id}`, {
+    method: "DELETE",
+  });
+}
+export function submitConversationFeedback(
+  conversationId: string,
+  worked: boolean
+) {
+  return apiFetch(`/api/conversations/${conversationId}/feedback`, {
+    method: "POST",
+    body: JSON.stringify({ worked }),
+  });
+}
+export function createConversation(payload: { title: string }) {
+  return apiFetch<{ id: string }>("/api/conversations", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

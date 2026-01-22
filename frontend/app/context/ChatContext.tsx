@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import { db } from "@/lib/db";
 import { useAuth } from "@/app/context/AuthContext";
-import { coachRequest } from "@/lib/api";
+import { coachRequest, createConversation } from "@/lib/api";
 import { useApp } from "@/app/context/AppContext";
 
 /* =========================
@@ -30,14 +30,14 @@ interface ChatContextType {
   conversationId: string | null;
   messages: Message[];
   isAIThinking: boolean;
+
+  showFeedback: boolean;
+  setShowFeedback: (v: boolean) => void;
+
   startNewChat: () => Promise<void>;
   loadConversation: (id: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
 }
-
-/* =========================
-   Context
-========================= */
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
@@ -45,13 +45,14 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
    Provider
 ========================= */
 
-export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const ChatProvider = ({ children }: { children: ReactNode }) => {
   const { teacher } = useAuth();
   const { userProfile, language } = useApp();
 
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isAIThinking, setIsAIThinking] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   /* =========================
      Helpers
@@ -65,6 +66,18 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     time_left_minutes: 10,
   });
 
+  const enforceLast10Conversations = async (teacherId: string) => {
+    const all = await db.conversations
+      .where("teacherId")
+      .equals(teacherId)
+      .sortBy("updatedAt");
+
+    if (all.length <= 10) return;
+
+    const excess = all.slice(0, all.length - 10);
+    await db.conversations.bulkDelete(excess.map(c => c.id));
+  };
+
   /* =========================
      Conversation helpers
   ========================= */
@@ -72,8 +85,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const startNewChat = async () => {
     setConversationId(null);
     setMessages([]);
+    setShowFeedback(false);
   };
-
 
   const loadConversation = async (id: string) => {
     if (!teacher?.id) return;
@@ -85,64 +98,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setConversationId(id);
     setMessages(msgs);
+    setShowFeedback(false);
   };
-
-  /* =========================
-     Online sync trigger
-  ========================= */
-
-  useEffect(() => {
-    if (!teacher?.id) return;
-
-    const sync = async () => {
-      if (!navigator.onLine) return;
-
-      const pending = await db.pending_actions
-        .where("type")
-        .equals("SEND_MESSAGE")
-        .toArray();
-
-      for (const action of pending) {
-        try {
-          const { content, messageId, conversationId } = action.payload;
-
-          const data = await coachRequest(buildCoachPayload(content));
-
-          await db.messages.update(messageId, { status: "sent" });
-
-          const aiMessage: Message = {
-            id: crypto.randomUUID(),
-            teacherId: teacher.id,
-            conversationId,
-            type: "ai",
-            content: data.output || "No response",
-            timestamp: Date.now(),
-            status: "sent",
-          };
-
-          await db.messages.put(aiMessage);
-          await db.pending_actions.delete(action.id);
-        } catch {
-          await db.pending_actions.update(action.id, {
-            retries: action.retries + 1,
-          });
-        }
-      }
-
-      if (conversationId) {
-        const updated = await db.messages
-          .where("conversationId")
-          .equals(conversationId)
-          .sortBy("timestamp");
-
-        setMessages(updated);
-      }
-    };
-
-    sync();
-    window.addEventListener("online", sync);
-    return () => window.removeEventListener("online", sync);
-  }, [teacher?.id, conversationId, userProfile, language]);
 
   /* =========================
      Send message
@@ -153,20 +110,24 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     let activeConversationId = conversationId;
 
-    // 🔹 Auto-create conversation on first message
+    // ✅ BACKEND creates conversation
     if (!activeConversationId) {
-    activeConversationId = crypto.randomUUID();
+      const convo = await createConversation({
+        title: content.slice(0, 60),
+      });
 
-    await db.conversations.put({
-      id: activeConversationId,
-      teacherId: teacher.id,
-      title: content.slice(0, 60),
-      lastMessagePreview: content.slice(0, 80),
-      updatedAt: Date.now(),
-    });
+      activeConversationId = convo.id;
 
-    setConversationId(activeConversationId);
-  }
+      await db.conversations.put({
+        id: convo.id,
+        teacherId: teacher.id,
+        title: content.slice(0, 60),
+        updatedAt: Date.now(),
+      });
+
+      await enforceLast10Conversations(teacher.id);
+      setConversationId(convo.id);
+    }
 
     const messageId = crypto.randomUUID();
 
@@ -180,54 +141,54 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       status: "pending",
     };
 
-    // 1️⃣ Save locally
     await db.messages.put(userMessage);
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
 
-    // 2️⃣ Online
-    if (navigator.onLine) {
-      try {
-        setIsAIThinking(true);
-
-        const data = await coachRequest(buildCoachPayload(content));
-
-        await db.messages.update(messageId, { status: "sent" });
-
-        const aiMessage: Message = {
-          id: crypto.randomUUID(),
-          teacherId: teacher.id,
-          conversationId: activeConversationId,
-          type: "ai",
-          content: data.output || "No response",
-          timestamp: Date.now(),
-          status: "sent",
-        };
-
-        await db.messages.put(aiMessage);
-        setMessages((prev) => [...prev, aiMessage]);
-        await db.conversations.update(activeConversationId, {
-          lastMessagePreview: data.output?.slice(0, 80),
-          updatedAt: Date.now(),
-        });
-
-      } catch {
-        await db.messages.update(messageId, { status: "failed" });
-      } finally {
-        setIsAIThinking(false);
-      }
-    } else {
-      // 3️⃣ Offline → queue
+    if (!navigator.onLine) {
       await db.pending_actions.put({
         id: crypto.randomUUID(),
         type: "SEND_MESSAGE",
-        payload: {
-          messageId,
-          content,
-          conversationId: activeConversationId,
-        },
+        payload: { messageId, content, conversationId: activeConversationId },
         retries: 0,
         createdAt: Date.now(),
       });
+      return;
+    }
+
+    try {
+      setIsAIThinking(true);
+
+      const data = await coachRequest(buildCoachPayload(content));
+
+      await db.messages.update(messageId, { status: "sent" });
+
+      const aiMessage: Message = {
+        id: crypto.randomUUID(),
+        teacherId: teacher.id,
+        conversationId: activeConversationId,
+        type: "ai",
+        content: data.output || "No response",
+        timestamp: Date.now(),
+        status: "sent",
+      };
+
+      await db.messages.put(aiMessage);
+      setMessages(prev => [...prev, aiMessage]);
+
+      await db.conversations.update(activeConversationId, {
+        lastMessagePreview: data.output?.slice(0, 80),
+        updatedAt: Date.now(),
+      });
+
+      await enforceLast10Conversations(teacher.id);
+
+      // ✅ show feedback after FIRST AI response
+      setShowFeedback(true);
+
+    } catch {
+      await db.messages.update(messageId, { status: "failed" });
+    } finally {
+      setIsAIThinking(false);
     }
   };
 
@@ -237,6 +198,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         conversationId,
         messages,
         isAIThinking,
+        showFeedback,
+        setShowFeedback,
         startNewChat,
         loadConversation,
         sendMessage,

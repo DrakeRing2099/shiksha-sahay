@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { useApp } from "@/app/context/AppContext";
 import { useChat } from "@/app/context/ChatContext";
 import { DeleteConversationButton } from "@/app/components/ui/DeleteConversationButton";
-import { fetchConversations, ConversationDTO } from "@/lib/api";
+import { fetchConversations, ConversationDTO, deleteConversation as deleteConversationApi } from "@/lib/api";
+import { db } from "@/lib/db";
 
 /* =========================
    Helpers
@@ -40,8 +41,19 @@ export const HistoryScreen = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await fetchConversations();
-        setConversations(data);
+        const local = await db.conversations
+          .orderBy("updatedAt")
+          .reverse()
+          .toArray();
+
+        setConversations(
+          local.map(c => ({
+            id: c.id,
+            title: c.title,
+            last_message_preview: c.lastMessagePreview || "",
+            updated_at: new Date(c.updatedAt).toISOString(),
+          }))
+        );
       } catch (e) {
         console.error("Failed to fetch conversations", e);
       } finally {
@@ -57,14 +69,38 @@ export const HistoryScreen = () => {
   ========================= */
 
   const openConversation = async (id: string) => {
+    const localCount = await db.messages
+      .where("conversationId")
+      .equals(id)
+      .count();
+
+    if (localCount === 0) {
+      alert("This conversation is not available offline yet.");
+      return;
+    }
+
     await loadConversation(id);
     router.push("/home");
   };
 
-  const deleteConversation = (id: string) => {
-    // UI-only delete for now
-    setConversations((prev) => prev.filter((c) => c.id !== id));
+
+
+  const deleteConversation = async (id: string) => {
+    try {
+      await deleteConversationApi(id);
+
+      await db.conversations.delete(id);
+      await db.messages
+        .where("conversationId")
+        .equals(id)
+        .delete();
+
+      setConversations(prev => prev.filter(c => c.id !== id));
+    } catch (e) {
+      console.error("Delete failed", e);
+    }
   };
+
 
   const today = conversations.filter((c) => isToday(c.updated_at));
   const yesterday = conversations.filter((c) =>

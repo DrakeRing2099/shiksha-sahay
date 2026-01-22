@@ -3,10 +3,11 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.api.deps import get_current_teacher_id
 from pydantic import BaseModel
+from uuid import uuid4
 from app.models.conversations import Conversation, TeachingInsight
 from app.schemas.conversations import ConversationFeedbackRequest
 from app.core.teaching_insight_generator import generate_teaching_insight
-
+from typing import Optional, Dict, Any
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
 @router.get("")
@@ -139,3 +140,31 @@ def submit_feedback(
             raise
 
     return {"status": "ok"}
+
+class CreateConversationRequest(BaseModel):
+    title: str
+    resolved_context: Optional[Dict[str, Any]] = None
+@router.post("")
+def create_conversation(
+    payload: CreateConversationRequest,
+    db: Session = Depends(get_db),
+    teacher_id: str = Depends(get_current_teacher_id),
+):
+    convo = Conversation(
+        id=uuid4(),
+        teacher_id=teacher_id,
+        title=payload.title,
+        raw_query="",
+        ai_response="",
+        resolved_context=payload.resolved_context or {},  # ✅ NEVER NULL
+    )
+
+    db.add(convo)
+    db.commit()
+    db.refresh(convo)
+
+    return {
+        "id": str(convo.id),
+        "title": convo.title,
+        "created_at": convo.created_at.isoformat(),
+    }

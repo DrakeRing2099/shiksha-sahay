@@ -168,7 +168,7 @@ export const InputBar = () => {
   ========================= */
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 h-20 bg-white border-t px-4 flex items-center gap-3 z-40">
+    <div className="fixed bottom-0 left-0 right-0 h-20 bg-white border-t px-4 flex items-center gap-3 z-40 pointer-events-auto">
       <button
         onClick={handleStartRecording}
         className="w-12 h-12 rounded-full bg-[#10B981] hover:bg-[#059669] flex items-center justify-center"

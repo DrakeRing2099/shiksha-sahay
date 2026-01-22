@@ -107,7 +107,7 @@ export const MessageBubble = ({ message }: MessageBubbleProps) => {
           {/* Action buttons */}
           <div className="flex items-center gap-3 mt-4 pt-3 border-t border-[#E5E7EB]">
             <button
-              onClick={() => setLiked(true)}
+              onClick={() => {console.log("LIKE CLICKED");setLiked(true)}}
               className={`p-2 rounded-lg transition-colors ${
                 liked === true
                   ? "bg-[#DBEAFE] text-[#2563EB]"

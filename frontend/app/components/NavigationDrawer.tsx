@@ -99,7 +99,7 @@ export const NavigationDrawer = () => {
       />
 
       {/* Drawer */}
-      <div className="fixed top-0 left-0 bottom-0 w-[280px] bg-white z-50 shadow-2xl animate-slide-in">
+      <div className="fixed top-0 left-0 bottom-0 w-[280px] bg-white z-50 shadow-2xl animate-slide-in ">
         {/* Header */}
         <div className="h-20 bg-gradient-to-r from-[#2563EB] to-[#1D4ED8] text-white px-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
