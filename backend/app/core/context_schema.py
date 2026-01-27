@@ -1,6 +1,7 @@
 from pydantic import BaseModel
-from typing import Optional, List, Dict
+from typing import Optional, List
 
+from app.core.intent_schema import IntentResult
 
 class TeacherStyleCtx(BaseModel):
     interactive_vs_passive: Optional[int]
@@ -37,3 +38,4 @@ class ResolvedContext(BaseModel):
     constraints: ConstraintsCtx
     history: HistoryCtx
     raw_prompt: str
+    intent: Optional[IntentResult] = None

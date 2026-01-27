@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "min_confidence": 0.55,
+  "ambiguous_delta": 0.1,
+  "fallback_intent": "unknown",
+  "slot_questions": {
+    "grade": "Which grade is this for?",
+    "subject": "Which subject is this for?",
+    "topic": "Which topic or chapter should I focus on?",
+    "time_left_minutes": "How much time is left in the period?"
+  },
+  "intents": [
+    {
+      "id": "lesson_plan",
+      "label": "lesson planning",
+      "description": "Create or structure a lesson or unit plan",
+      "triggers": [
+        "lesson plan",
+        "plan a lesson",
+        "lesson outline",
+        "unit plan",
+        "period plan",
+        "lesson structure",
+        "plan for",
+        "structure a lesson"
+      ],
+      "required_slots": ["grade", "subject", "topic"],
+      "optional_slots": ["time_left_minutes"]
+    },
+    {
+      "id": "explain_concept",
+      "label": "concept explanation",
+      "description": "Explain or simplify a concept for students",
+      "triggers": [
+        "explain",
+        "explanation",
+        "how to teach",
+        "teach",
+        "concept",
+        "understand",
+        "simplify",
+        "break down"
+      ],
+      "required_slots": ["grade", "subject", "topic"],
+      "optional_slots": ["time_left_minutes"]
+    },
+    {
+      "id": "classroom_management",
+      "label": "classroom management",
+      "description": "Manage behavior, attention, or engagement in class",
+      "triggers": [
+        "classroom management",
+        "discipline",
+        "noise",
+        "noisy",
+        "behavior",
+        "attention",
+        "engagement",
+        "control the class",
+        "students won't listen",
+        "students are disruptive"
+      ],
+      "required_slots": ["grade"],
+      "optional_slots": ["subject", "time_left_minutes"]
+    },
+    {
+      "id": "assessment",
+      "label": "assessment or quiz",
+      "description": "Create questions, quizzes, tests, or worksheets",
+      "triggers": [
+        "quiz",
+        "test",
+        "worksheet",
+        "questions",
+        "assessment",
+        "evaluation",
+        "mcq",
+        "exam",
+        "practice questions"
+      ],
+      "required_slots": ["grade", "subject", "topic"],
+      "optional_slots": []
+    },
+    {
+      "id": "activity_idea",
+      "label": "activity idea",
+      "description": "Suggest in-class activities or interactive ideas",
+      "triggers": [
+        "activity",
+        "game",
+        "hands-on",
+        "group work",
+        "project",
+        "interactive",
+        "experiment",
+        "role play"
+      ],
+      "required_slots": ["grade", "subject", "topic"],
+      "optional_slots": ["time_left_minutes"]
+    },
+    {
+      "id": "student_support",
+      "label": "student support",
+      "description": "Help with struggling students or differentiation",
+      "triggers": [
+        "struggling",
+        "slow learners",
+        "differentiation",
+        "remedial",
+        "support",
+        "learning gaps",
+        "special needs"
+      ],
+      "required_slots": ["grade", "subject", "topic"],
+      "optional_slots": []
+    },
+    {
+      "id": "administrative",
+      "label": "administrative",
+      "description": "Administrative or policy-related tasks",
+      "triggers": [
+        "report",
+        "attendance",
+        "records",
+        "policy",
+        "circular",
+        "meeting",
+        "paperwork",
+        "parent meeting"
+      ],
+      "required_slots": [],
+      "optional_slots": []
+    },
+    {
+      "id": "smalltalk",
+      "label": "small talk",
+      "description": "Greetings or non-instructional chat",
+      "triggers": [
+        "hello",
+        "hi",
+        "good morning",
+        "good afternoon",
+        "how are you",
+        "thanks",
+        "thank you",
+        "bye"
+      ],
+      "required_slots": [],
+      "optional_slots": []
+    },
+    {
+      "id": "unknown",
+      "label": "unknown",
+      "description": "Fallback when the intent is unclear",
+      "triggers": [],
+      "required_slots": [],
+      "optional_slots": []
+    }
+  ],
+  "slots": {
+    "grade": { "type": "int" },
+    "subject": { "type": "str" },
+    "topic": { "type": "str" },
+    "time_left_minutes": { "type": "int" }
+  },
+  "subjects": {
+    "Mathematics": ["math", "mathematics", "algebra", "geometry", "arithmetic", "fractions"],
+    "Science": ["science", "physics", "chemistry", "biology"],
+    "English": ["english", "grammar", "literature", "reading", "writing"],
+    "Hindi": ["hindi"],
+    "Social Studies": ["social studies", "social science", "civics", "history", "geography", "economics"],
+    "EVS": ["evs", "environmental studies"]
+  }
+}

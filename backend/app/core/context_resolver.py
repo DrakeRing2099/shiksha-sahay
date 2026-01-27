@@ -19,6 +19,7 @@ def resolve_context(
     subject: str | None = None,
     language: str | None = None,
     time_left_minutes: int | None = None,
+    intent=None,
 ) -> ResolvedContext:
 
     teacher = first_by_id(db, Teacher, teacher_id)
@@ -67,5 +68,6 @@ def resolve_context(
         classroom=classroom_ctx,
         constraints=constraints_ctx,
         history=history_ctx,
-        raw_prompt=raw_prompt
+        raw_prompt=raw_prompt,
+        intent=intent,
     )

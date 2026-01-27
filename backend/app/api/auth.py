@@ -66,10 +66,11 @@ def signup_request_otp(payload: SignupRequestOTPIn, db: Session = Depends(get_db
             raise HTTPException(status_code=409, detail="Teacher already registered")
         teacher = existing
     else:
-        #checking whether school exists in db or not
-        school = db.query(School).filter(School.id == payload.school_id).first()
-        if not school:
-            raise HTTPException(status_code=400, detail="Invalid school")
+        # If a school is provided, validate it exists
+        if payload.school_id:
+            school = db.query(School).filter(School.id == payload.school_id).first()
+            if not school:
+                raise HTTPException(status_code=400, detail="Invalid school")
 
         # Create teacher in onboarding_status=0 (pending)
         teacher = Teacher(
